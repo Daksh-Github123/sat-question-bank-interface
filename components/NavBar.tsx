@@ -6,8 +6,10 @@ import { usePathname } from "next/navigation";
 const links = [
   { href: "/", label: "Dashboard" },
   { href: "/practice", label: "Practice" },
+  { href: "/review", label: "Review" },
   { href: "/browse", label: "Browse" },
-  { href: "/import", label: "Import PDFs" },
+  { href: "/reports", label: "Reports" },
+  { href: "/import", label: "Import" },
 ];
 
 export default function NavBar() {
