@@ -2,18 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { Question } from "@/lib/types";
+import type { Question, PracticeMode, Confidence, MissReason } from "@/lib/types";
+import { MISS_REASON_LABELS } from "@/lib/types";
 import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
+import { updateSessionProgress, completeSession } from "@/lib/practice";
+import { getQuestionStates, setFlag as persistFlag, setNote as persistNote } from "@/lib/questionState";
 
 interface Props {
   questions: Question[];
-  mode: "stopwatch" | "timer";
-  secondsPerQuestion: number;
+  mode: PracticeMode;
+  perQuestionSeconds: number | null;
+  totalSeconds: number | null;
   sessionId: string;
+  startIndex?: number;
+  startElapsed?: number;
   onExit: () => void;
 }
 
-interface RecordedAnswer {
+interface Recorded {
   question: Question;
   selected: string | null;
   correct: boolean;
@@ -22,93 +28,266 @@ interface RecordedAnswer {
 
 function fmt(s: number) {
   const m = Math.floor(s / 60);
-  const sec = s % 60;
+  const sec = Math.max(0, s % 60);
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
 export default function PracticeSession({
   questions,
   mode,
-  secondsPerQuestion,
+  perQuestionSeconds,
+  totalSeconds,
   sessionId,
+  startIndex = 0,
+  startElapsed = 0,
   onExit,
 }: Props) {
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(startIndex);
   const [selected, setSelected] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [answers, setAnswers] = useState<RecordedAnswer[]>([]);
-  const [saving, setSaving] = useState(false);
-  const startRef = useRef<number>(Date.now());
+  const [answers, setAnswers] = useState<Recorded[]>([]);
+  const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [confidence, setConfidence] = useState<Confidence | null>(null);
+  const [missReason, setMissReason] = useState<MissReason | null>(null);
+  const [flags, setFlags] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState<Map<string, string>>(new Map());
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [phase, setPhase] = useState<"run" | "flagged" | "done">("run");
+
+  // Per-question clock baseline (accounts for resumed partial time).
+  const startRef = useRef<number>(Date.now() - startElapsed * 1000);
+  // Module-mode total countdown baseline.
+  const moduleStartRef = useRef<number>(Date.now());
+  const [moduleElapsed, setModuleElapsed] = useState(0);
 
   const q = questions[index];
   const isLast = index === questions.length - 1;
 
-  // Reset the per-question clock whenever we move to a new question.
+  // Load persisted flags/notes for this session's questions.
+  useEffect(() => {
+    (async () => {
+      const states = await getQuestionStates(questions.map((x) => x.id));
+      const f = new Set<string>();
+      const n = new Map<string, string>();
+      states.forEach((s) => {
+        if (s.flagged) f.add(s.question_uid);
+        if (s.note) n.set(s.question_uid, s.note);
+      });
+      setFlags(f);
+      setNotes(n);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // New question: reset per-question state.
   useEffect(() => {
     startRef.current = Date.now();
     setElapsed(0);
     setSelected(null);
     setRevealed(false);
+    setAttemptId(null);
+    setConfidence(null);
+    setMissReason(null);
+    setNoteOpen(false);
+    setNoteDraft(q ? notes.get(q.id) || "" : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
-  // Tick the clock every second while the question is unanswered.
+  // Tick per-question clock while unanswered.
   useEffect(() => {
-    if (revealed) return;
+    if (revealed || phase !== "run") return;
     const t = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
     }, 250);
     return () => clearInterval(t);
-  }, [revealed, index]);
+  }, [revealed, index, phase]);
 
-  const remaining = mode === "timer" ? Math.max(0, secondsPerQuestion - elapsed) : 0;
+  // Module-mode total clock.
+  useEffect(() => {
+    if (mode !== "module" || phase !== "run") return;
+    const t = setInterval(() => {
+      setModuleElapsed(Math.floor((Date.now() - moduleStartRef.current) / 1000));
+    }, 500);
+    return () => clearInterval(t);
+  }, [mode, phase]);
 
-  const submit = useCallback(
-    async (auto = false) => {
-      if (revealed) return;
+  // Persist progress periodically (for pause/resume) while running a question.
+  useEffect(() => {
+    if (revealed || phase !== "run") return;
+    const t = setInterval(() => {
       const spent = Math.floor((Date.now() - startRef.current) / 1000);
-      const choice = auto ? selected : selected;
-      const correct = !!choice && choice === q.correct_answer;
-      setRevealed(true);
-      setAnswers((prev) => [
-        ...prev,
-        { question: q, selected: choice, correct, seconds: spent },
-      ]);
-      // Persist attempt (fire and forget, but surface errors on save button).
-      await supabase.from("attempts").insert({
+      updateSessionProgress(sessionId, index, spent);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [revealed, index, phase, sessionId]);
+
+  const perQRemaining =
+    mode === "timer" && perQuestionSeconds ? Math.max(0, perQuestionSeconds - elapsed) : 0;
+  const moduleRemaining =
+    mode === "module" && totalSeconds ? Math.max(0, totalSeconds - moduleElapsed) : 0;
+
+  const submit = useCallback(async () => {
+    if (revealed || !q) return;
+    const spent = Math.floor((Date.now() - startRef.current) / 1000);
+    const correct = !!selected && selected === q.correct_answer;
+    setRevealed(true);
+    setAnswers((prev) => [...prev, { question: q, selected, correct, seconds: spent }]);
+    // Record attempt; capture id so confidence / miss-reason can update it.
+    const { data } = await supabase
+      .from("attempts")
+      .insert({
         question_uid: q.id,
-        selected_answer: choice,
+        selected_answer: selected,
         is_correct: correct,
         time_spent_seconds: spent,
         mode,
         session_id: sessionId,
-      });
-    },
-    [revealed, selected, q, mode, sessionId]
-  );
+      })
+      .select("id")
+      .single();
+    if (data) setAttemptId((data as any).id);
+    // Advance the saved pointer so resume lands on the next question.
+    updateSessionProgress(sessionId, index + 1, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealed, q, selected, mode, sessionId, index]);
 
-  // Timer mode: auto-submit when the clock runs out.
+  // Timer mode: auto-submit when the per-question clock runs out.
   useEffect(() => {
-    if (mode === "timer" && !revealed && remaining <= 0 && elapsed > 0) {
-      submit(true);
+    if (mode === "timer" && !revealed && phase === "run" && perQuestionSeconds && perQRemaining <= 0 && elapsed > 0) {
+      submit();
     }
-  }, [mode, revealed, remaining, elapsed, submit]);
+  }, [mode, revealed, phase, perQuestionSeconds, perQRemaining, elapsed, submit]);
 
-  function next() {
-    if (isLast) return;
-    setIndex((i) => i + 1);
+  // Module mode: end the session when total time expires.
+  useEffect(() => {
+    if (mode === "module" && phase === "run" && totalSeconds && moduleRemaining <= 0 && moduleElapsed > 0) {
+      if (!revealed) submit();
+      finish();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, phase, totalSeconds, moduleRemaining, moduleElapsed]);
+
+  async function updateAttempt(patch: { confidence?: Confidence; miss_reason?: MissReason }) {
+    if (!attemptId) return;
+    await supabase.from("attempts").update(patch).eq("id", attemptId);
   }
 
-  // ---- Summary screen ----
-  if (index >= questions.length) return null;
+  async function toggleFlag() {
+    if (!q) return;
+    const on = !flags.has(q.id);
+    setFlags((prev) => {
+      const next = new Set(prev);
+      on ? next.add(q.id) : next.delete(q.id);
+      return next;
+    });
+    await persistFlag(q.id, on);
+  }
 
-  const finished = revealed && isLast;
-  const totalTime = answers.reduce((a, r) => a + r.seconds, 0);
+  async function saveNote() {
+    if (!q) return;
+    setNotes((prev) => new Map(prev).set(q.id, noteDraft));
+    await persistNote(q.id, noteDraft);
+    setNoteOpen(false);
+  }
+
+  function next() {
+    if (isLast) {
+      finish();
+    } else {
+      setIndex((i) => i + 1);
+    }
+  }
+
+  async function finish() {
+    await completeSession(sessionId);
+    const flaggedList = questions.filter((x) => flags.has(x.id));
+    setPhase(flaggedList.length ? "flagged" : "done");
+  }
+
   const correctCount = answers.filter((a) => a.correct).length;
+  const totalTime = answers.reduce((a, r) => a + r.seconds, 0);
+  const answeredCount = answers.length;
+
+  // ---- Summary / flagged review ----
+  if (phase !== "run") {
+    const flaggedList = questions.filter((x) => flags.has(x.id));
+    return (
+      <div className="space-y-5">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+          <p className="text-lg font-bold text-emerald-800">
+            Session complete — {correctCount}/{answeredCount} correct
+          </p>
+          <p className="mt-1 text-sm text-emerald-700">
+            {answeredCount ? Math.round((correctCount / answeredCount) * 100) : 0}% · {fmt(totalTime)} total ·{" "}
+            {answeredCount ? Math.round(totalTime / answeredCount) : 0}s avg
+          </p>
+        </div>
+
+        {phase === "flagged" && flaggedList.length > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-white p-5">
+            <p className="mb-3 text-sm font-semibold text-amber-700">
+              🚩 {flaggedList.length} flagged question{flaggedList.length === 1 ? "" : "s"} to revisit
+            </p>
+            <div className="space-y-3">
+              {flaggedList.map((fq) => {
+                const rec = answers.find((a) => a.question.id === fq.id);
+                return (
+                  <div key={fq.id} className="rounded-lg border border-slate-200 p-3">
+                    <div className="mb-1 flex items-center gap-2 text-xs">
+                      <span className={`rounded border px-1.5 py-0.5 ${DIFFICULTY_COLORS[fq.difficulty] || ""}`}>
+                        {fq.difficulty}
+                      </span>
+                      <span className="text-slate-500">{fq.skill}</span>
+                      {rec && (
+                        <span className={rec.correct ? "text-emerald-600" : "text-rose-600"}>
+                          {rec.correct ? "✓ correct" : "✗ missed"}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-700">{fq.question_text}</p>
+                    <p className="mt-1 text-sm">
+                      Correct answer: <span className="font-semibold text-emerald-700">{fq.correct_answer}</span>
+                    </p>
+                    {fq.rationale && (
+                      <p className="mt-1 text-xs text-slate-500">{fq.rationale}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3">
+          <a href="/review" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            Review mistakes
+          </a>
+          <button onClick={onExit} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!q) return null;
+  const flagged = flags.has(q.id);
+
+  // Module pacing: are we ahead of / behind the needed pace?
+  let pacing: { label: string; cls: string } | null = null;
+  if (mode === "module" && totalSeconds) {
+    const expectedDone = (moduleElapsed / totalSeconds) * questions.length;
+    const diff = answeredCount - expectedDone;
+    if (diff >= 0.5) pacing = { label: `Ahead by ${Math.round(diff)}`, cls: "text-emerald-600" };
+    else if (diff <= -0.5) pacing = { label: `Behind by ${Math.round(-diff)}`, cls: "text-rose-600" };
+    else pacing = { label: "On pace", cls: "text-slate-500" };
+  }
 
   return (
     <div className="space-y-5">
-      {/* Progress + clock */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-slate-500">
@@ -117,31 +296,40 @@ export default function PracticeSession({
           <span className={`rounded border px-2 py-0.5 text-xs ${DIFFICULTY_COLORS[q.difficulty] || ""}`}>
             {q.difficulty}
           </span>
-          <span className="text-xs text-slate-400">{q.skill}</span>
+          <span className="hidden text-xs text-slate-400 sm:inline">{q.skill}</span>
         </div>
-        <div
-          className={`rounded-md px-3 py-1 font-mono text-lg font-semibold ${
-            mode === "timer" && remaining <= 10
-              ? "bg-rose-100 text-rose-700"
-              : "bg-slate-100 text-slate-700"
-          }`}
-        >
-          {mode === "timer" ? fmt(remaining) : fmt(elapsed)}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleFlag}
+            title="Flag to revisit"
+            className={`rounded-md border px-2 py-1 text-sm ${
+              flagged ? "border-amber-400 bg-amber-50 text-amber-700" : "border-slate-300 text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            🚩 {flagged ? "Flagged" : "Flag"}
+          </button>
+          {mode === "module" ? (
+            <div className="flex items-center gap-2">
+              {pacing && <span className={`text-xs font-medium ${pacing.cls}`}>{pacing.label}</span>}
+              <span className={`rounded-md px-3 py-1 font-mono text-lg font-semibold ${moduleRemaining <= 60 ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-700"}`}>
+                {fmt(moduleRemaining)}
+              </span>
+            </div>
+          ) : (
+            <span className={`rounded-md px-3 py-1 font-mono text-lg font-semibold ${mode === "timer" && perQRemaining <= 10 ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-700"}`}>
+              {mode === "timer" ? fmt(perQRemaining) : fmt(elapsed)}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-        <div
-          className="h-full bg-brand-500 transition-all"
-          style={{ width: `${((index + (revealed ? 1 : 0)) / questions.length) * 100}%` }}
-        />
+        <div className="h-full bg-brand-500 transition-all" style={{ width: `${((index + (revealed ? 1 : 0)) / questions.length) * 100}%` }} />
       </div>
 
       {/* Question */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-800">
-          {q.question_text}
-        </p>
+        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-800">{q.question_text}</p>
 
         <div className="mt-5 space-y-2">
           {q.choices ? (
@@ -153,9 +341,7 @@ export default function PracticeSession({
                 if (isCorrect) cls = "border-emerald-400 bg-emerald-50";
                 else if (isChosen) cls = "border-rose-400 bg-rose-50";
                 else cls = "border-slate-200 opacity-70";
-              } else if (isChosen) {
-                cls = "border-brand-500 bg-brand-50";
-              }
+              } else if (isChosen) cls = "border-brand-500 bg-brand-50";
               return (
                 <button
                   key={c.letter}
@@ -168,14 +354,11 @@ export default function PracticeSession({
                   </span>
                   <span className="text-slate-700">{c.text}</span>
                   {revealed && isCorrect && <span className="ml-auto text-emerald-600">✓</span>}
-                  {revealed && isChosen && !isCorrect && (
-                    <span className="ml-auto text-rose-600">✗</span>
-                  )}
+                  {revealed && isChosen && !isCorrect && <span className="ml-auto text-rose-600">✗</span>}
                 </button>
               );
             })
           ) : (
-            // Student-produced response (no choices): free text entry.
             <div>
               <input
                 type="text"
@@ -187,67 +370,105 @@ export default function PracticeSession({
               />
               {revealed && (
                 <p className="mt-2 text-sm">
-                  Correct answer:{" "}
-                  <span className="font-semibold text-emerald-700">{q.correct_answer}</span>
+                  Correct answer: <span className="font-semibold text-emerald-700">{q.correct_answer}</span>
                 </p>
               )}
             </div>
           )}
         </div>
 
-        {/* Actions */}
         <div className="mt-5 flex items-center justify-between">
           <button onClick={onExit} className="text-sm text-slate-400 hover:text-slate-600">
-            End session
+            Pause &amp; exit
           </button>
           {!revealed ? (
             <button
-              onClick={() => submit(false)}
+              onClick={submit}
               disabled={selected === null || selected === ""}
               className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
             >
               Submit
             </button>
-          ) : !finished ? (
-            <button
-              onClick={next}
-              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              Next question →
-            </button>
           ) : (
-            <button
-              onClick={onExit}
-              className="rounded-md bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              Finish
+            <button onClick={next} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+              {isLast ? "Finish" : "Next question →"}
             </button>
           )}
         </div>
       </div>
 
-      {/* Rationale */}
-      {revealed && q.rationale && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">
-            Explanation
-          </p>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-            {q.rationale}
-          </p>
-        </div>
-      )}
+      {/* Post-answer: confidence, miss-reason, note, rationale */}
+      {revealed && (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-500">How sure were you?</span>
+                {(["confident", "guessed"] as Confidence[]).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      setConfidence(c);
+                      updateAttempt({ confidence: c });
+                    }}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                      confidence === c ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-300 text-slate-500"
+                    }`}
+                  >
+                    {c === "confident" ? "Confident" : "Guessed"}
+                  </button>
+                ))}
+              </div>
 
-      {/* Running tally */}
-      {finished && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center">
-          <p className="text-lg font-bold text-emerald-800">
-            Session complete — {correctCount}/{questions.length} correct
-          </p>
-          <p className="mt-1 text-sm text-emerald-700">
-            {Math.round((correctCount / questions.length) * 100)}% accuracy · {fmt(totalTime)} total ·{" "}
-            {Math.round(totalTime / questions.length)}s avg / question
-          </p>
+              {answers[answers.length - 1] && !answers[answers.length - 1].correct && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-slate-500">Why missed?</span>
+                  {(Object.keys(MISS_REASON_LABELS) as MissReason[]).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => {
+                        setMissReason(r);
+                        updateAttempt({ miss_reason: r });
+                      }}
+                      className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                        missReason === r ? "border-rose-400 bg-rose-50 text-rose-700" : "border-slate-300 text-slate-500"
+                      }`}
+                    >
+                      {MISS_REASON_LABELS[r]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Note */}
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              {!noteOpen ? (
+                <button onClick={() => setNoteOpen(true)} className="text-xs text-brand-600 hover:underline">
+                  {notes.get(q.id) ? `📝 Edit note: “${notes.get(q.id)}”` : "📝 Add a note"}
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    placeholder="Your takeaway for this question…"
+                    className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                  />
+                  <button onClick={saveNote} className="rounded-md bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white">
+                    Save
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {q.rationale && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Explanation</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{q.rationale}</p>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -3,14 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { TAXONOMY, DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
+import type { PracticeSessionConfig, PracticeMode } from "@/lib/types";
 
-export interface PracticeConfig {
-  skills: string[]; // empty => all skills
-  difficulties: string[];
-  count: number;
-  mode: "stopwatch" | "timer";
-  secondsPerQuestion: number;
-  order: "random" | "sequential";
+export interface StartPayload {
+  config: PracticeSessionConfig;
+  mode: PracticeMode;
+  perQuestionSeconds: number | null;
+  totalSeconds: number | null;
 }
 
 interface MetaRow {
@@ -20,19 +19,23 @@ interface MetaRow {
   difficulty: string;
 }
 
-export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig) => void }) {
+export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) => void }) {
   const [meta, setMeta] = useState<MetaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [difficulties, setDifficulties] = useState<Set<string>>(new Set(DIFFICULTIES));
   const [count, setCount] = useState(20);
-  const [mode, setMode] = useState<"stopwatch" | "timer">("stopwatch");
-  const [seconds, setSeconds] = useState(90);
   const [order, setOrder] = useState<"random" | "sequential">("random");
+  const [mix, setMix] = useState<"balanced" | "test-like">("balanced");
+  const [focus, setFocus] = useState<"even" | "weak">("even");
+  const [includeReview, setIncludeReview] = useState(true);
+
+  const [mode, setMode] = useState<PracticeMode>("stopwatch");
+  const [seconds, setSeconds] = useState(90);
+  const [moduleMinutes, setModuleMinutes] = useState(32);
 
   useEffect(() => {
     (async () => {
-      // Page through all questions' metadata to build the picker with live counts.
       const rows: MetaRow[] = [];
       const pageSize = 1000;
       for (let from = 0; ; from += pageSize) {
@@ -49,7 +52,6 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
     })();
   }, []);
 
-  // Count available questions per skill (respecting difficulty filter).
   const skillCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of meta) {
@@ -59,10 +61,7 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
     return m;
   }, [meta, difficulties]);
 
-  const totalPresentSkills = useMemo(() => {
-    const s = new Set(meta.map((r) => r.skill));
-    return s;
-  }, [meta]);
+  const presentSkills = useMemo(() => new Set(meta.map((r) => r.skill)), [meta]);
 
   const matchingCount = useMemo(() => {
     return meta.filter(
@@ -79,7 +78,6 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
       return next;
     });
   }
-
   function toggleDifficulty(d: string) {
     setDifficulties((prev) => {
       const next = new Set(prev);
@@ -87,14 +85,10 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
       return next;
     });
   }
-
   function setDomainSkills(skills: string[], on: boolean) {
     setSelectedSkills((prev) => {
       const next = new Set(prev);
-      for (const s of skills) {
-        if (on) next.add(s);
-        else next.delete(s);
-      }
+      for (const s of skills) (on ? next.add(s) : next.delete(s));
       return next;
     });
   }
@@ -102,9 +96,7 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
   const canStart = matchingCount > 0 && difficulties.size > 0;
   const effectiveCount = Math.min(count, matchingCount);
 
-  if (loading) {
-    return <p className="text-sm text-slate-500">Loading your question bank…</p>;
-  }
+  if (loading) return <p className="text-sm text-slate-500">Loading your question bank…</p>;
 
   if (meta.length === 0) {
     return (
@@ -118,12 +110,31 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
     );
   }
 
+  function start() {
+    const config: PracticeSessionConfig = {
+      skills: Array.from(selectedSkills),
+      difficulties: Array.from(difficulties),
+      count: effectiveCount,
+      order,
+      mix,
+      focus,
+      includeReview,
+    };
+    onStart({
+      config,
+      mode,
+      perQuestionSeconds: mode === "timer" ? seconds : null,
+      totalSeconds: mode === "module" ? moduleMinutes * 60 : null,
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">New practice session</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Pick topics and difficulties, then choose a stopwatch or per-question timer.
+          Choose topics, difficulty mix, and timing. Your progress saves automatically so you can
+          pause and pick up later.
         </p>
       </div>
 
@@ -136,9 +147,7 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
               key={d}
               onClick={() => toggleDifficulty(d)}
               className={`rounded-full border px-4 py-1.5 text-sm font-medium ${
-                difficulties.has(d)
-                  ? DIFFICULTY_COLORS[d]
-                  : "border-slate-200 bg-white text-slate-400"
+                difficulties.has(d) ? DIFFICULTY_COLORS[d] : "border-slate-200 bg-white text-slate-400"
               }`}
             >
               {d}
@@ -147,7 +156,7 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
         </div>
       </section>
 
-      {/* Skills grouped by test/domain */}
+      {/* Skills */}
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">Topics &amp; skills</h2>
@@ -161,7 +170,7 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
         <div className="space-y-5">
           {TAXONOMY.map((t) => {
             const presentDomains = t.domains.filter((d) =>
-              d.skills.some((s) => totalPresentSkills.has(s))
+              d.skills.some((s) => presentSkills.has(s))
             );
             if (presentDomains.length === 0) return null;
             return (
@@ -171,21 +180,21 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {presentDomains.map((d) => {
-                    const presentSkills = d.skills.filter((s) => totalPresentSkills.has(s));
-                    const allOn = presentSkills.every((s) => selectedSkills.has(s));
+                    const ps = d.skills.filter((s) => presentSkills.has(s));
+                    const allOn = ps.every((s) => selectedSkills.has(s));
                     return (
                       <div key={d.domain} className="rounded-md border border-slate-100 p-3">
                         <div className="mb-1.5 flex items-center justify-between">
                           <span className="text-sm font-medium text-slate-700">{d.domain}</span>
                           <button
-                            onClick={() => setDomainSkills(presentSkills, !allOn)}
+                            onClick={() => setDomainSkills(ps, !allOn)}
                             className="text-[11px] text-brand-600 hover:underline"
                           >
                             {allOn ? "none" : "all"}
                           </button>
                         </div>
                         <div className="space-y-1">
-                          {presentSkills.map((s) => (
+                          {ps.map((s) => (
                             <label
                               key={s}
                               className="flex cursor-pointer items-center justify-between gap-2 text-sm"
@@ -199,9 +208,7 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
                                 />
                                 {s}
                               </span>
-                              <span className="text-xs text-slate-400">
-                                {skillCounts.get(s) || 0}
-                              </span>
+                              <span className="text-xs text-slate-400">{skillCounts.get(s) || 0}</span>
                             </label>
                           ))}
                         </div>
@@ -215,10 +222,68 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
         </div>
       </section>
 
-      {/* Session options */}
+      {/* Mix & focus */}
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Session options</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-800">Question selection</h2>
         <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-slate-600">Difficulty mix</span>
+            <select
+              value={mix}
+              onChange={(e) => setMix(e.target.value as any)}
+              className="w-full rounded-md border border-slate-300 px-3 py-2"
+            >
+              <option value="balanced">Balanced (use what&apos;s available)</option>
+              <option value="test-like">Test-like (≈25% easy · 50% medium · 25% hard)</option>
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-slate-600">Focus</span>
+            <select
+              value={focus}
+              onChange={(e) => setFocus(e.target.value as any)}
+              className="w-full rounded-md border border-slate-300 px-3 py-2"
+            >
+              <option value="even">Even across selected skills</option>
+              <option value="weak">Lean toward my weak skills (&lt;70%)</option>
+            </select>
+          </label>
+        </div>
+        <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={includeReview}
+            onChange={(e) => setIncludeReview(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-brand-600"
+          />
+          Mix in questions I previously missed (due for review)
+        </label>
+      </section>
+
+      {/* Timing */}
+      <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800">Timing</h2>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {(
+            [
+              ["stopwatch", "⏱ Untimed", "Stopwatch counts up"],
+              ["timer", "⏳ Per-question", "Countdown each question"],
+              ["module", "📝 Full module", "One clock + pacing"],
+            ] as [PracticeMode, string, string][]
+          ).map(([m, label, sub]) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`rounded-md border px-3 py-2 text-left ${
+                mode === m ? "border-brand-500 bg-brand-50" : "border-slate-300"
+              }`}
+            >
+              <div className="text-sm font-medium text-slate-700">{label}</div>
+              <div className="text-xs text-slate-400">{sub}</div>
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <label className="text-sm">
             <span className="mb-1 block font-medium text-slate-600">
               Number of questions (max {matchingCount})
@@ -232,45 +297,6 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
               className="w-full rounded-md border border-slate-300 px-3 py-2"
             />
           </label>
-
-          <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">Question order</span>
-            <select
-              value={order}
-              onChange={(e) => setOrder(e.target.value as any)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
-            >
-              <option value="random">Shuffled</option>
-              <option value="sequential">In bank order</option>
-            </select>
-          </label>
-
-          <div className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">Timing</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMode("stopwatch")}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
-                  mode === "stopwatch"
-                    ? "border-brand-500 bg-brand-50 text-brand-700"
-                    : "border-slate-300 text-slate-600"
-                }`}
-              >
-                ⏱ Stopwatch
-              </button>
-              <button
-                onClick={() => setMode("timer")}
-                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium ${
-                  mode === "timer"
-                    ? "border-brand-500 bg-brand-50 text-brand-700"
-                    : "border-slate-300 text-slate-600"
-                }`}
-              >
-                ⏳ Timer
-              </button>
-            </div>
-          </div>
-
           {mode === "timer" && (
             <label className="text-sm">
               <span className="mb-1 block font-medium text-slate-600">Seconds per question</span>
@@ -284,26 +310,42 @@ export default function PracticeSetup({ onStart }: { onStart: (c: PracticeConfig
               />
             </label>
           )}
+          {mode === "module" && (
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-600">Total time (minutes)</span>
+              <input
+                type="number"
+                min={1}
+                max={240}
+                value={moduleMinutes}
+                onChange={(e) => setModuleMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-full rounded-md border border-slate-300 px-3 py-2"
+              />
+            </label>
+          )}
+          {mode === "stopwatch" && (
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-600">Order</span>
+              <select
+                value={order}
+                onChange={(e) => setOrder(e.target.value as any)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2"
+              >
+                <option value="random">Shuffled</option>
+                <option value="sequential">In bank order</option>
+              </select>
+            </label>
+          )}
         </div>
       </section>
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
-          {matchingCount} question{matchingCount === 1 ? "" : "s"} match — starting{" "}
-          <strong>{effectiveCount}</strong>.
+          {matchingCount} match — starting <strong>{effectiveCount}</strong>.
         </p>
         <button
           disabled={!canStart}
-          onClick={() =>
-            onStart({
-              skills: Array.from(selectedSkills),
-              difficulties: Array.from(difficulties),
-              count: effectiveCount,
-              mode,
-              secondsPerQuestion: seconds,
-              order,
-            })
-          }
+          onClick={start}
           className="rounded-md bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           Start practice
