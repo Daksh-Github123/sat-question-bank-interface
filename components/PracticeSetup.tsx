@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { TAXONOMY, DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
+import { getAttemptedIds } from "@/lib/practice";
 import type { PracticeSessionConfig, PracticeMode } from "@/lib/types";
 
 export interface StartPayload {
@@ -13,6 +14,7 @@ export interface StartPayload {
 }
 
 interface MetaRow {
+  id: string;
   test: string;
   domain: string;
   skill: string;
@@ -29,6 +31,8 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
   const [mix, setMix] = useState<"balanced" | "test-like">("balanced");
   const [focus, setFocus] = useState<"even" | "weak">("even");
   const [includeReview, setIncludeReview] = useState(true);
+  const [avoidSeen, setAvoidSeen] = useState(true);
+  const [attemptedIds, setAttemptedIds] = useState<Set<string>>(new Set());
 
   const [mode, setMode] = useState<PracticeMode>("stopwatch");
   const [seconds, setSeconds] = useState(90);
@@ -41,25 +45,30 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       for (let from = 0; ; from += pageSize) {
         const { data, error } = await supabase
           .from("questions")
-          .select("test, domain, skill, difficulty")
+          .select("id, test, domain, skill, difficulty")
           .range(from, from + pageSize - 1);
         if (error) break;
         rows.push(...(data as MetaRow[]));
         if (!data || data.length < pageSize) break;
       }
       setMeta(rows);
+      setAttemptedIds(await getAttemptedIds());
       setLoading(false);
     })();
   }, []);
+
+  const isSeen = (r: MetaRow) => avoidSeen && attemptedIds.has(r.id);
 
   const skillCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of meta) {
       if (!difficulties.has(r.difficulty)) continue;
+      if (isSeen(r)) continue;
       m.set(r.skill, (m.get(r.skill) || 0) + 1);
     }
     return m;
-  }, [meta, difficulties]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, difficulties, avoidSeen, attemptedIds]);
 
   const presentSkills = useMemo(() => new Set(meta.map((r) => r.skill)), [meta]);
 
@@ -67,9 +76,11 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
     return meta.filter(
       (r) =>
         difficulties.has(r.difficulty) &&
-        (selectedSkills.size === 0 || selectedSkills.has(r.skill))
+        (selectedSkills.size === 0 || selectedSkills.has(r.skill)) &&
+        !isSeen(r)
     ).length;
-  }, [meta, difficulties, selectedSkills]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, difficulties, selectedSkills, avoidSeen, attemptedIds]);
 
   function toggleSkill(skill: string) {
     setSelectedSkills((prev) => {
@@ -119,6 +130,7 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       mix,
       focus,
       includeReview,
+      avoidSeen,
     };
     onStart({
       config,
@@ -250,6 +262,15 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
           </label>
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={avoidSeen}
+            onChange={(e) => setAvoidSeen(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-brand-600"
+          />
+          Only new questions I haven&apos;t done before
+        </label>
+        <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={includeReview}

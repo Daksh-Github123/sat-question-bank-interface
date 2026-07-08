@@ -87,6 +87,14 @@ export async function getDueReviewIds(): Promise<Set<string>> {
   return due;
 }
 
+/** All question uuids that have ever been attempted. */
+export async function getAttemptedIds(): Promise<Set<string>> {
+  const set = new Set<string>();
+  const { data } = await supabase.from("attempts").select("question_uid").limit(50000);
+  for (const a of (data as any[]) || []) set.add(a.question_uid);
+  return set;
+}
+
 /** Difficulty targets for a "test-like" mix. */
 const TEST_MIX: Record<string, number> = { Easy: 0.25, Medium: 0.5, Hard: 0.25 };
 
@@ -122,7 +130,11 @@ export async function buildSessionQuestions(
     reviewPicks = weightedSample(dueCandidates, focusWeight, quota);
   }
   const pickedIds = new Set(reviewPicks.map((q) => q.id));
-  const rest = candidates.filter((q) => !pickedIds.has(q.id));
+  // Exclude already-attempted questions from the fresh pool so new sessions don't
+  // repeat questions you've already done. (Review resurfacing above is exempt —
+  // that intentionally brings back missed questions after a few days.)
+  const attempted = config.avoidSeen ? await getAttemptedIds() : new Set<string>();
+  const rest = candidates.filter((q) => !pickedIds.has(q.id) && !attempted.has(q.id));
   const remaining = Math.max(0, config.count - reviewPicks.length);
 
   let restPicks: Question[] = [];

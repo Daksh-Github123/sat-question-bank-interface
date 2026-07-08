@@ -65,6 +65,7 @@ export interface PracticeSessionConfig {
   mix: "balanced" | "test-like";
   focus: "even" | "weak";
   includeReview: boolean;
+  avoidSeen: boolean; // skip questions already attempted (except review resurfacing)
 }
 
 export interface PracticeSessionRow {
