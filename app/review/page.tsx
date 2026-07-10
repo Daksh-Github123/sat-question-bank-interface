@@ -7,6 +7,7 @@ import { MISS_REASON_LABELS } from "@/lib/types";
 import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { REVIEW_INTERVAL_DAYS } from "@/lib/practice";
 import { setNote as persistNote } from "@/lib/questionState";
+import { currentUserId } from "@/lib/user";
 import ReattemptBox from "@/components/ReattemptBox";
 
 interface WrongItem {
@@ -45,9 +46,10 @@ export default function ReviewPage() {
       supabase
         .from("attempts")
         .select("id, question_uid, selected_answer, is_correct, miss_reason, created_at, question:questions(*)")
+        .eq("user_id", currentUserId())
         .order("created_at", { ascending: false })
         .limit(20000),
-      supabase.from("question_state").select("question_uid, note").limit(20000),
+      supabase.from("question_state").select("question_uid, note").eq("user_id", currentUserId()).limit(20000),
     ]);
     const noteMap = new Map<string, string>();
     for (const s of (states as any[]) || []) if (s.note) noteMap.set(s.question_uid, s.note);

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { WEAKNESS_THRESHOLD } from "@/lib/practice";
+import { currentUserId } from "@/lib/user";
 import AccuracyTrend, { TrendPoint } from "@/components/AccuracyTrend";
 
 interface AttemptRow {
@@ -50,6 +51,7 @@ export default function DashboardPage() {
         supabase
           .from("attempts")
           .select("is_correct, time_spent_seconds, created_at, confidence, question:questions(test, domain, skill, difficulty)")
+          .eq("user_id", currentUserId())
           .order("created_at", { ascending: true })
           .limit(20000),
         supabase.from("questions").select("*", { count: "exact", head: true }),

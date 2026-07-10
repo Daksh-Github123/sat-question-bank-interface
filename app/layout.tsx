@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import NavBar from "@/components/NavBar";
+import AuthGate from "@/components/AuthGate";
 
 export const metadata: Metadata = {
   title: "SAT Question Bank",
@@ -11,8 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <NavBar />
-        <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+        <AuthGate>{children}</AuthGate>
       </body>
     </html>
   );

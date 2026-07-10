@@ -7,6 +7,7 @@ import { MISS_REASON_LABELS } from "@/lib/types";
 import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { updateSessionProgress, completeSession } from "@/lib/practice";
 import { getQuestionStates, setFlag as persistFlag, setNote as persistNote } from "@/lib/questionState";
+import { currentUserId } from "@/lib/user";
 
 interface Props {
   questions: Question[];
@@ -144,6 +145,7 @@ export default function PracticeSession({
         time_spent_seconds: spent,
         mode,
         session_id: sessionId,
+        user_id: currentUserId(),
       })
       .select("id")
       .single();
