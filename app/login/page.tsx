@@ -35,6 +35,8 @@ export default function LoginPage() {
     }
     storeCurrentUser(data as any);
     setUser(data as any);
+    // Record last login (best-effort; never blocks sign-in).
+    supabase.from("users").update({ last_login_at: new Date().toISOString() }).eq("id", (data as any).id).then(() => {});
     router.replace("/");
   }
 

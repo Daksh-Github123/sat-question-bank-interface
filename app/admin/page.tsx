@@ -10,11 +10,27 @@ interface Row {
   display_name: string;
   is_admin: boolean;
   created_at: string;
+  last_login_at: string | null;
+}
+
+function timeAgo(iso: string | null) {
+  if (!iso) return "never";
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  return new Date(iso).toLocaleDateString();
 }
 
 export default function AdminPage() {
   const { user } = useUser();
   const [users, setUsers] = useState<Row[]>([]);
+  const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [makeAdmin, setMakeAdmin] = useState(false);
@@ -22,8 +38,16 @@ export default function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const { data } = await supabase.from("users").select("*").order("created_at");
+    const [{ data }, { data: att }] = await Promise.all([
+      supabase.from("users").select("*").order("created_at"),
+      supabase.from("attempts").select("user_id").limit(100000),
+    ]);
     setUsers((data as Row[]) || []);
+    const c = new Map<string, number>();
+    for (const a of (att as any[]) || []) {
+      if (a.user_id) c.set(a.user_id, (c.get(a.user_id) || 0) + 1);
+    }
+    setCounts(c);
     setLoading(false);
   }
 
@@ -112,6 +136,8 @@ export default function AdminPage() {
                 <tr>
                   <th className="px-3 py-2 font-medium">Username</th>
                   <th className="px-3 py-2 font-medium">Role</th>
+                  <th className="px-3 py-2 font-medium">Questions done</th>
+                  <th className="px-3 py-2 font-medium">Last login</th>
                   <th className="px-3 py-2 font-medium">Created</th>
                   <th className="px-3 py-2"></th>
                 </tr>
@@ -121,6 +147,8 @@ export default function AdminPage() {
                   <tr key={u.id} className="border-b border-slate-100 last:border-0">
                     <td className="px-3 py-2 font-medium text-slate-700">{u.display_name}</td>
                     <td className="px-3 py-2 text-slate-500">{u.is_admin ? "Admin" : "User"}</td>
+                    <td className="px-3 py-2 text-slate-700">{counts.get(u.id) || 0}</td>
+                    <td className="px-3 py-2 text-slate-500" title={u.last_login_at || "never"}>{timeAgo(u.last_login_at)}</td>
                     <td className="px-3 py-2 text-slate-400">{u.created_at.slice(0, 10)}</td>
                     <td className="px-3 py-2 text-right">
                       {u.id !== user?.id && (
