@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "./supabaseClient";
+import { currentUserId } from "./user";
 import type {
   Question,
   PracticeSessionConfig,
@@ -50,6 +51,7 @@ export async function getSkillAccuracy(): Promise<Map<string, SkillAcc>> {
   const { data } = await supabase
     .from("attempts")
     .select("is_correct, question:questions(skill)")
+    .eq("user_id", currentUserId())
     .limit(20000);
   for (const a of (data as any[]) || []) {
     const skill = a.question?.skill;
@@ -71,6 +73,7 @@ export async function getDueReviewIds(): Promise<Set<string>> {
   const { data } = await supabase
     .from("attempts")
     .select("question_uid, is_correct, created_at")
+    .eq("user_id", currentUserId())
     .order("created_at", { ascending: false })
     .limit(20000);
   const latest = new Map<string, { is_correct: boolean; created_at: string }>();
@@ -90,7 +93,11 @@ export async function getDueReviewIds(): Promise<Set<string>> {
 /** All question uuids that have ever been attempted. */
 export async function getAttemptedIds(): Promise<Set<string>> {
   const set = new Set<string>();
-  const { data } = await supabase.from("attempts").select("question_uid").limit(50000);
+  const { data } = await supabase
+    .from("attempts")
+    .select("question_uid")
+    .eq("user_id", currentUserId())
+    .limit(50000);
   for (const a of (data as any[]) || []) set.add(a.question_uid);
   return set;
 }
@@ -190,6 +197,7 @@ export async function createSession(
       current_index: 0,
       current_elapsed_seconds: 0,
       status: "active",
+      user_id: currentUserId(),
     })
     .select("id")
     .single();
@@ -224,6 +232,7 @@ export async function getActiveSession(): Promise<PracticeSessionRow | null> {
     .from("practice_sessions")
     .select("*")
     .eq("status", "active")
+    .eq("user_id", currentUserId())
     .order("updated_at", { ascending: false })
     .limit(1);
   const row = (data as PracticeSessionRow[])?.[0];

@@ -5,6 +5,7 @@ import { parsePdf } from "@/lib/pdfParser";
 import { supabase } from "@/lib/supabaseClient";
 import type { ParsedQuestion } from "@/lib/types";
 import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
+import { useUser } from "@/lib/userContext";
 
 interface FileResult {
   name: string;
@@ -13,6 +14,7 @@ interface FileResult {
 }
 
 export default function ImportPage() {
+  const { user } = useUser();
   const [results, setResults] = useState<FileResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>("");
@@ -78,6 +80,17 @@ export default function ImportPage() {
     entry.total++;
     entry.diff[q.difficulty] = (entry.diff[q.difficulty] || 0) + 1;
     bySkill.set(key, entry);
+  }
+
+  if (!user?.is_admin) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+        <p className="font-medium text-slate-800">Admins only</p>
+        <p className="mt-1 text-sm text-slate-500">
+          The question bank is shared by everyone, so only the admin can import new PDFs.
+        </p>
+      </div>
+    );
   }
 
   return (

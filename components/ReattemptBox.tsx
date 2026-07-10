@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { currentUserId } from "@/lib/user";
 import type { Question } from "@/lib/types";
 
 /** Inline re-attempt of a single question; records an attempt on submit. */
@@ -27,6 +28,7 @@ export default function ReattemptBox({
       is_correct: isCorrect,
       time_spent_seconds: 0,
       mode: "review",
+      user_id: currentUserId(),
     });
     onResolved(isCorrect);
   }

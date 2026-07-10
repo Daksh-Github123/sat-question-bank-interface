@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { Question } from "@/lib/types";
 import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
+import { currentUserId } from "@/lib/user";
 
 type Status = "attempted" | "unattempted" | "wrong" | "correct" | "guessed" | "flagged";
 
@@ -35,8 +36,8 @@ export default function BrowsePage() {
       setQuestions(rows);
 
       const [{ data: att }, { data: states }] = await Promise.all([
-        supabase.from("attempts").select("question_uid, is_correct, confidence, created_at").order("created_at", { ascending: false }).limit(20000),
-        supabase.from("question_state").select("question_uid, flagged, note").limit(20000),
+        supabase.from("attempts").select("question_uid, is_correct, confidence, created_at").eq("user_id", currentUserId()).order("created_at", { ascending: false }).limit(20000),
+        supabase.from("question_state").select("question_uid, flagged, note").eq("user_id", currentUserId()).limit(20000),
       ]);
       const latest = new Map<string, { is_correct: boolean; confidence: string | null }>();
       const guessed = new Set<string>();

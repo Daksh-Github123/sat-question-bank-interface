@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { WEAKNESS_THRESHOLD } from "@/lib/practice";
+import { currentUserId } from "@/lib/user";
 
 interface AttemptRow {
   question_uid: string;
@@ -38,6 +39,7 @@ export default function ReportsPage() {
     const { data } = await supabase
       .from("attempts")
       .select("question_uid, is_correct, selected_answer, time_spent_seconds, confidence, miss_reason, created_at, question:questions(question_id, skill, difficulty, correct_answer)")
+      .eq("user_id", currentUserId())
       .gte("created_at", startTs)
       .lte("created_at", endTs)
       .order("created_at", { ascending: true })
@@ -115,11 +117,12 @@ export default function ReportsPage() {
 
   async function downloadBackup() {
     setBackupBusy(true);
+    const uid = currentUserId();
     const [q, a, s, ps] = await Promise.all([
       supabase.from("questions").select("*").limit(20000),
-      supabase.from("attempts").select("*").limit(50000),
-      supabase.from("question_state").select("*").limit(20000),
-      supabase.from("practice_sessions").select("*").limit(20000),
+      supabase.from("attempts").select("*").eq("user_id", uid).limit(50000),
+      supabase.from("question_state").select("*").eq("user_id", uid).limit(20000),
+      supabase.from("practice_sessions").select("*").eq("user_id", uid).limit(20000),
     ]);
     const backup = {
       exported_at: new Date().toISOString(),
