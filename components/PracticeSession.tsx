@@ -62,6 +62,9 @@ export default function PracticeSession({
   // Module-mode total countdown baseline.
   const moduleStartRef = useRef<number>(Date.now());
   const [moduleElapsed, setModuleElapsed] = useState(0);
+  // Pause: freezes all clocks; paused time is excluded from recorded time.
+  const [paused, setPaused] = useState(false);
+  const pauseStartRef = useRef<number>(0);
 
   const q = questions[index];
   const isLast = index === questions.length - 1;
@@ -88,6 +91,7 @@ export default function PracticeSession({
     setElapsed(0);
     setSelected(null);
     setRevealed(false);
+    setPaused(false);
     setAttemptId(null);
     setConfidence(null);
     setMissReason(null);
@@ -98,31 +102,31 @@ export default function PracticeSession({
 
   // Tick per-question clock while unanswered.
   useEffect(() => {
-    if (revealed || phase !== "run") return;
+    if (revealed || paused || phase !== "run") return;
     const t = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
     }, 250);
     return () => clearInterval(t);
-  }, [revealed, index, phase]);
+  }, [revealed, paused, index, phase]);
 
   // Module-mode total clock.
   useEffect(() => {
-    if (mode !== "module" || phase !== "run") return;
+    if (mode !== "module" || paused || phase !== "run") return;
     const t = setInterval(() => {
       setModuleElapsed(Math.floor((Date.now() - moduleStartRef.current) / 1000));
     }, 500);
     return () => clearInterval(t);
-  }, [mode, phase]);
+  }, [mode, paused, phase]);
 
   // Persist progress periodically (for pause/resume) while running a question.
   useEffect(() => {
-    if (revealed || phase !== "run") return;
+    if (revealed || paused || phase !== "run") return;
     const t = setInterval(() => {
       const spent = Math.floor((Date.now() - startRef.current) / 1000);
       updateSessionProgress(sessionId, index, spent);
     }, 5000);
     return () => clearInterval(t);
-  }, [revealed, index, phase, sessionId]);
+  }, [revealed, paused, index, phase, sessionId]);
 
   const perQRemaining =
     mode === "timer" && perQuestionSeconds ? Math.max(0, perQuestionSeconds - elapsed) : 0;
@@ -174,6 +178,24 @@ export default function PracticeSession({
   async function updateAttempt(patch: { confidence?: Confidence; miss_reason?: MissReason }) {
     if (!attemptId) return;
     await supabase.from("attempts").update(patch).eq("id", attemptId);
+  }
+
+  function pauseClock() {
+    if (revealed || paused) return;
+    pauseStartRef.current = Date.now();
+    // Freeze the displayed time at its exact current value.
+    setElapsed(Math.floor((pauseStartRef.current - startRef.current) / 1000));
+    setPaused(true);
+  }
+
+  function resumeClock() {
+    if (!paused) return;
+    // Shift both baselines forward by the paused duration so that duration is
+    // never counted toward time_spent (keeps average time per question exact).
+    const delta = Date.now() - pauseStartRef.current;
+    startRef.current += delta;
+    moduleStartRef.current += delta;
+    setPaused(false);
   }
 
   async function toggleFlag() {
@@ -310,6 +332,17 @@ export default function PracticeSession({
           >
             🚩 {flagged ? "Flagged" : "Flag"}
           </button>
+          {!revealed && (
+            <button
+              onClick={paused ? resumeClock : pauseClock}
+              title={paused ? "Resume the clock" : "Pause the clock"}
+              className={`rounded-md border px-2 py-1 text-sm ${
+                paused ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-300 text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {paused ? "▶ Resume" : "⏸ Pause"}
+            </button>
+          )}
           {mode === "module" ? (
             <div className="flex items-center gap-2">
               {pacing && <span className={`text-xs font-medium ${pacing.cls}`}>{pacing.label}</span>}
@@ -331,6 +364,22 @@ export default function PracticeSession({
 
       {/* Question */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
+        {paused ? (
+          <div className="py-12 text-center">
+            <p className="text-2xl">⏸</p>
+            <p className="mt-2 text-lg font-semibold text-slate-700">Paused</p>
+            <p className="mt-1 text-sm text-slate-500">
+              The clock is stopped — this break won&apos;t count toward your time.
+            </p>
+            <button
+              onClick={resumeClock}
+              className="mt-4 rounded-md bg-brand-600 px-6 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              ▶ Resume
+            </button>
+          </div>
+        ) : (
+          <>
         <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-800">{q.question_text}</p>
 
         <div className="mt-5 space-y-2">
@@ -378,22 +427,24 @@ export default function PracticeSession({
             </div>
           )}
         </div>
+          </>
+        )}
 
         <div className="mt-5 flex items-center justify-between">
           <button onClick={onExit} className="text-sm text-slate-400 hover:text-slate-600">
-            Pause &amp; exit
+            Save &amp; exit
           </button>
-          {!revealed ? (
+          {revealed ? (
+            <button onClick={next} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+              {isLast ? "Finish" : "Next question →"}
+            </button>
+          ) : paused ? null : (
             <button
               onClick={submit}
               disabled={selected === null || selected === ""}
               className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
             >
               Submit
-            </button>
-          ) : (
-            <button onClick={next} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-              {isLast ? "Finish" : "Next question →"}
             </button>
           )}
         </div>
