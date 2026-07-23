@@ -66,6 +66,7 @@ export interface PracticeSessionConfig {
   focus: "even" | "weak";
   includeReview: boolean;
   avoidSeen: boolean; // skip questions already attempted (except review resurfacing)
+  requireTags: boolean; // require confidence (and miss-reason if wrong) before advancing
 }
 
 export interface PracticeSessionRow {

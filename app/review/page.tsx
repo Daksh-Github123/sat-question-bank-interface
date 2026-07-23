@@ -8,7 +8,6 @@ import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { REVIEW_INTERVAL_DAYS } from "@/lib/practice";
 import { setNote as persistNote } from "@/lib/questionState";
 import { currentUserId } from "@/lib/user";
-import ReattemptBox from "@/components/ReattemptBox";
 
 interface WrongItem {
   attemptId: string;
@@ -179,7 +178,7 @@ export default function ReviewPage() {
                         <span className="text-slate-500">{q.skill}</span>
                         <span className="text-slate-400">missed {timeAgo(item.when)}</span>
                       </div>
-                      <p className="line-clamp-2 text-sm text-slate-700">{q.question_text}</p>
+                      <p className="line-clamp-1 text-sm text-slate-500">{q.question_text}</p>
                       <p className="mt-1 text-xs">
                         <span className="text-rose-600">You: {item.selected || "—"}</span>
                         <span className="mx-2 text-slate-300">|</span>
@@ -234,14 +233,6 @@ export default function ReviewPage() {
 
                       {/* Note */}
                       <NoteEditor initial={item.note} onSave={(n) => saveNote(item, n)} />
-
-                      {/* Re-attempt */}
-                      <ReattemptBox
-                        question={q}
-                        onResolved={(correct) => {
-                          if (correct) setItems((prev) => prev.filter((i) => i.attemptId !== item.attemptId));
-                        }}
-                      />
                     </div>
                   )}
                 </div>
