@@ -32,6 +32,7 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
   const [focus, setFocus] = useState<"even" | "weak">("even");
   const [includeReview, setIncludeReview] = useState(true);
   const [avoidSeen, setAvoidSeen] = useState(true);
+  const [requireTags, setRequireTags] = useState(true);
   const [attemptedIds, setAttemptedIds] = useState<Set<string>>(new Set());
 
   const [mode, setMode] = useState<PracticeMode>("stopwatch");
@@ -131,6 +132,7 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       focus,
       includeReview,
       avoidSeen,
+      requireTags,
     };
     onStart({
       config,
@@ -278,6 +280,15 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
             className="h-4 w-4 rounded border-slate-300 text-brand-600"
           />
           Mix in questions I previously missed (due for review)
+        </label>
+        <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={requireTags}
+            onChange={(e) => setRequireTags(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-brand-600"
+          />
+          Ask me to tag confidence (and reason if wrong) before moving on
         </label>
       </section>
 

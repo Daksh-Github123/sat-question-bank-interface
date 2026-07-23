@@ -17,6 +17,7 @@ interface Props {
   sessionId: string;
   startIndex?: number;
   startElapsed?: number;
+  requireTags?: boolean;
   onExit: () => void;
 }
 
@@ -41,6 +42,7 @@ export default function PracticeSession({
   sessionId,
   startIndex = 0,
   startElapsed = 0,
+  requireTags = false,
   onExit,
 }: Props) {
   const [index, setIndex] = useState(startIndex);
@@ -309,6 +311,13 @@ export default function PracticeSession({
     else pacing = { label: "On pace", cls: "text-slate-500" };
   }
 
+  // Tag gating: if enabled, require a confidence tag (and a miss-reason when the
+  // answer was wrong) before allowing the move to the next question.
+  const lastRec = answers[answers.length - 1];
+  const answeredWrong = revealed && !!lastRec && !lastRec.correct;
+  const tagsIncomplete =
+    requireTags && revealed && (!confidence || (answeredWrong && !missReason));
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -317,9 +326,12 @@ export default function PracticeSession({
           <span className="text-sm font-medium text-slate-500">
             Question {index + 1} of {questions.length}
           </span>
-          <span className={`rounded border px-2 py-0.5 text-xs ${DIFFICULTY_COLORS[q.difficulty] || ""}`}>
-            {q.difficulty}
-          </span>
+          {/* Difficulty is hidden until the question is answered, to avoid biasing you. */}
+          {revealed && (
+            <span className={`rounded border px-2 py-0.5 text-xs ${DIFFICULTY_COLORS[q.difficulty] || ""}`}>
+              {q.difficulty}
+            </span>
+          )}
           <span className="hidden text-xs text-slate-400 sm:inline">{q.skill}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -435,9 +447,20 @@ export default function PracticeSession({
             Save &amp; exit
           </button>
           {revealed ? (
-            <button onClick={next} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
-              {isLast ? "Finish" : "Next question →"}
-            </button>
+            <div className="flex items-center gap-2">
+              {tagsIncomplete && (
+                <span className="text-xs text-amber-600">
+                  Tag your confidence{answeredWrong ? " & reason" : ""} to continue ↓
+                </span>
+              )}
+              <button
+                onClick={next}
+                disabled={tagsIncomplete}
+                className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {isLast ? "Finish" : "Next question →"}
+              </button>
+            </div>
           ) : paused ? null : (
             <button
               onClick={submit}

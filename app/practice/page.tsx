@@ -20,6 +20,17 @@ interface ActiveSession {
   sessionId: string;
   startIndex: number;
   startElapsed: number;
+  requireTags: boolean;
+}
+
+// A saved session is only offered for resume if it's unfinished AND recent —
+// this keeps old, abandoned sessions from nagging you forever. (Client-side
+// only; nothing is written to the database.)
+function isResumable(a: PracticeSessionRow | null): boolean {
+  if (!a) return false;
+  if (a.current_index >= a.question_ids.length) return false;
+  const ageMs = Date.now() - new Date(a.updated_at).getTime();
+  return ageMs < 24 * 60 * 60 * 1000;
 }
 
 export default function PracticePage() {
@@ -31,9 +42,7 @@ export default function PracticePage() {
   useEffect(() => {
     (async () => {
       const active = await getActiveSession();
-      if (active && active.current_index < active.question_ids.length) {
-        setResumable(active);
-      }
+      if (isResumable(active)) setResumable(active);
       setPhase("setup");
     })();
   }, []);
@@ -69,6 +78,7 @@ export default function PracticePage() {
         sessionId: id,
         startIndex: 0,
         startElapsed: 0,
+        requireTags: payload.config.requireTags,
       });
       setPhase("active");
     } catch (e: any) {
@@ -88,6 +98,7 @@ export default function PracticePage() {
       sessionId: row.id,
       startIndex: Math.min(row.current_index, questions.length - 1),
       startElapsed: row.current_elapsed_seconds || 0,
+      requireTags: (row.config as any)?.requireTags ?? false,
     });
     setPhase("active");
   }
@@ -110,12 +121,13 @@ export default function PracticePage() {
         sessionId={session.sessionId}
         startIndex={session.startIndex}
         startElapsed={session.startElapsed}
+        requireTags={session.requireTags}
         onExit={() => {
           setSession(null);
           setPhase("checking");
           // Re-check for a resumable (paused) session.
           getActiveSession().then((a) => {
-            if (a && a.current_index < a.question_ids.length) setResumable(a);
+            setResumable(isResumable(a) ? a : null);
             setPhase("setup");
           });
         }}
