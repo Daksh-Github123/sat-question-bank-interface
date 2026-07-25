@@ -1,160 +1,253 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { WEAKNESS_THRESHOLD } from "@/lib/practice";
 import { currentUserId } from "@/lib/user";
-import AccuracyTrend, { TrendPoint } from "@/components/AccuracyTrend";
+import { TESTS } from "@/lib/taxonomy";
+import DailyBars, { DayBar } from "@/components/DailyBars";
 
 interface AttemptRow {
+  question_uid: string;
   is_correct: boolean;
   time_spent_seconds: number;
   created_at: string;
-  confidence: string | null;
-  question: { test: string; domain: string; skill: string; difficulty: string } | null;
+  question: { test: string; domain: string; skill: string } | null;
 }
 
-interface Group {
-  total: number;
-  correct: number;
-  seconds: number;
+interface BankRow {
+  test: string;
+  domain: string;
+  skill: string;
 }
-const emptyGroup = (): Group => ({ total: 0, correct: 0, seconds: 0 });
-const pct = (g: Group) => (g.total ? Math.round((g.correct / g.total) * 100) : 0);
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WINDOW_DAYS = 30;
+const RECENT_DAYS = 7;
+const NEGLECT_DAYS = 14;
+
+const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+const shortDate = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
 function fmtTime(s: number) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   if (h > 0) return `${h}h ${m}m`;
   const sec = s % 60;
-  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  return m > 0 ? `${m}m` : `${sec}s`;
 }
 
-function AccuracyBar({ value, color = "bg-brand-500" }: { value: number; color?: string }) {
-  return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-      <div className={`h-full ${color}`} style={{ width: `${value}%` }} />
-    </div>
-  );
+function daysAgoLabel(ms: number | null) {
+  if (ms == null) return "never";
+  const days = Math.floor((Date.now() - ms) / DAY_MS);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
+interface SkillStat {
+  skill: string;
+  test: string;
+  domain: string;
+  available: number;
+  attempts: number;
+  correct: number;
+  distinct: Set<string>;
+  seconds: number;
+  recent: number; // answers in last RECENT_DAYS
+  lastMs: number | null;
+  firstHalf: { t: number; c: number };
+  secondHalf: { t: number; c: number };
 }
 
 export default function DashboardPage() {
   const [attempts, setAttempts] = useState<AttemptRow[]>([]);
-  const [bankSize, setBankSize] = useState(0);
+  const [bank, setBank] = useState<BankRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<string>("All");
+  const [sort, setSort] = useState<"attention" | "accuracy" | "coverage" | "az">("attention");
 
   useEffect(() => {
     (async () => {
-      const [{ data: att }, { count }] = await Promise.all([
-        supabase
-          .from("attempts")
-          .select("is_correct, time_spent_seconds, created_at, confidence, question:questions(test, domain, skill, difficulty)")
-          .eq("user_id", currentUserId())
-          .order("created_at", { ascending: true })
-          .limit(20000),
-        supabase.from("questions").select("*", { count: "exact", head: true }),
-      ]);
+      const uid = currentUserId();
+      // attempts (this user) ascending for trend halves
+      const { data: att } = await supabase
+        .from("attempts")
+        .select("question_uid, is_correct, time_spent_seconds, created_at, question:questions(test, domain, skill)")
+        .eq("user_id", uid)
+        .order("created_at", { ascending: true })
+        .limit(50000);
       setAttempts((att as unknown as AttemptRow[]) || []);
-      setBankSize(count || 0);
+
+      // bank meta (shared) — paged
+      const rows: BankRow[] = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("questions")
+          .select("test, domain, skill")
+          .range(from, from + pageSize - 1);
+        if (error || !data) break;
+        rows.push(...(data as BankRow[]));
+        if (data.length < pageSize) break;
+      }
+      setBank(rows);
       setLoading(false);
     })();
   }, []);
 
+  // ---- derived ----
+  const { tiles, questionBars, minuteBars, skillStats, presentTests } = useMemo(() => {
+    // Bank availability + skill -> test/domain
+    const bankBySkill = new Map<string, { test: string; domain: string; total: number }>();
+    for (const b of bank) {
+      const e = bankBySkill.get(b.skill) || { test: b.test, domain: b.domain, total: 0 };
+      e.total++;
+      bankBySkill.set(b.skill, e);
+    }
+
+    const stats = new Map<string, SkillStat>();
+    const ensure = (skill: string): SkillStat => {
+      let s = stats.get(skill);
+      if (!s) {
+        const meta = bankBySkill.get(skill);
+        s = {
+          skill,
+          test: meta?.test || "",
+          domain: meta?.domain || "",
+          available: meta?.total || 0,
+          attempts: 0,
+          correct: 0,
+          distinct: new Set(),
+          seconds: 0,
+          recent: 0,
+          lastMs: null,
+          firstHalf: { t: 0, c: 0 },
+          secondHalf: { t: 0, c: 0 },
+        };
+        stats.set(skill, s);
+      }
+      return s;
+    };
+    // include all bank skills so nothing is hidden (checkups)
+    for (const skill of bankBySkill.keys()) ensure(skill);
+
+    // per-skill ordered attempts for trend halves
+    const perSkillSeq = new Map<string, AttemptRow[]>();
+    const recentCut = Date.now() - RECENT_DAYS * DAY_MS;
+
+    // daily window
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days: Date[] = [];
+    for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * DAY_MS);
+      days.push(d);
+    }
+    const byDay = new Map<string, { count: number; seconds: number }>();
+
+    let overallCorrect = 0;
+    let weekCount = 0;
+    let totalSeconds = 0;
+    const distinctAllQ = new Set<string>();
+
+    for (const a of attempts) {
+      totalSeconds += a.time_spent_seconds;
+      if (a.is_correct) overallCorrect++;
+      const t = new Date(a.created_at).getTime();
+      if (t >= recentCut) weekCount++;
+
+      const dk = a.created_at.slice(0, 10);
+      const dd = byDay.get(dk) || { count: 0, seconds: 0 };
+      dd.count++;
+      dd.seconds += a.time_spent_seconds;
+      byDay.set(dk, dd);
+
+      if (!a.question) continue;
+      const s = ensure(a.question.skill);
+      s.attempts++;
+      if (a.is_correct) s.correct++;
+      s.seconds += a.time_spent_seconds;
+      s.distinct.add(a.question_uid);
+      distinctAllQ.add(a.question_uid);
+      if (t >= recentCut) s.recent++;
+      s.lastMs = s.lastMs == null ? t : Math.max(s.lastMs, t);
+      const seq = perSkillSeq.get(a.question.skill) || [];
+      seq.push(a);
+      perSkillSeq.set(a.question.skill, seq);
+    }
+
+    perSkillSeq.forEach((seq, skill) => {
+      const s = stats.get(skill)!;
+      const mid = Math.floor(seq.length / 2);
+      const half = (rows: AttemptRow[]) => rows.reduce((acc, r) => ({ t: acc.t + 1, c: acc.c + (r.is_correct ? 1 : 0) }), { t: 0, c: 0 });
+      s.firstHalf = half(seq.slice(0, mid));
+      s.secondHalf = half(seq.slice(mid));
+    });
+
+    const questionBars: DayBar[] = days.map((d) => {
+      const k = dayKey(d);
+      const v = byDay.get(k)?.count || 0;
+      return { label: shortDate(d), value: v, full: `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}: ${v} question${v === 1 ? "" : "s"}` };
+    });
+    const minuteBars: DayBar[] = days.map((d) => {
+      const k = dayKey(d);
+      const v = Math.round((byDay.get(k)?.seconds || 0) / 60);
+      return { label: shortDate(d), value: v, full: `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}: ${v} min` };
+    });
+
+    const totalAttempts = attempts.length;
+    const skillStats = Array.from(stats.values());
+    const presentTests = TESTS.filter((t) => skillStats.some((s) => s.test === t && s.available > 0));
+
+    const bankTotal = bank.length;
+
+    const tiles = {
+      accuracy: totalAttempts ? Math.round((overallCorrect / totalAttempts) * 100) : 0,
+      totalAttempts,
+      overallCorrect,
+      covered: distinctAllQ.size,
+      bankTotal,
+      totalSeconds,
+      weekCount,
+    };
+
+    return { tiles, questionBars, minuteBars, skillStats, presentTests };
+  }, [attempts, bank]);
+
+  const acc = (t: number, c: number) => (t ? Math.round((c / t) * 100) : 0);
+
+  const visibleSkills = useMemo(() => {
+    let list = skillStats.filter((s) => s.available > 0 || s.attempts > 0);
+    if (tab !== "All") list = list.filter((s) => s.test === tab);
+    const score = (s: SkillStat) => {
+      // "needs attention": never/long-neglected first, then low accuracy
+      const last = s.lastMs ?? 0;
+      return last;
+    };
+    list = [...list].sort((a, b) => {
+      if (sort === "az") return a.skill.localeCompare(b.skill);
+      if (sort === "accuracy") {
+        const aa = a.attempts ? a.correct / a.attempts : 2; // unpracticed last
+        const bb = b.attempts ? b.correct / b.attempts : 2;
+        return aa - bb;
+      }
+      if (sort === "coverage") {
+        const ca = a.available ? a.distinct.size / a.available : 1;
+        const cb = b.available ? b.distinct.size / b.available : 1;
+        return ca - cb;
+      }
+      // attention: oldest last-practiced first (never = 0)
+      return score(a) - score(b);
+    });
+    return list;
+  }, [skillStats, tab, sort]);
+
   if (loading) return <p className="text-sm text-slate-500">Loading your statistics…</p>;
 
-  const overall = attempts.reduce((g, a) => {
-    g.total++;
-    if (a.is_correct) g.correct++;
-    g.seconds += a.time_spent_seconds;
-    return g;
-  }, emptyGroup());
-
-  const byDifficulty = new Map<string, Group>();
-  const byDomain = new Map<string, Group>();
-  const bySkill = new Map<string, Group>();
-  // per-skill split into earlier vs recent halves for a trend arrow
-  const bySkillHalves = new Map<string, { first: Group; second: Group; count: number }>();
-
-  const skillAttemptSeq = new Map<string, AttemptRow[]>();
-  for (const a of attempts) {
-    if (!a.question) continue;
-    const add = (map: Map<string, Group>, key: string) => {
-      const g = map.get(key) || emptyGroup();
-      g.total++;
-      if (a.is_correct) g.correct++;
-      g.seconds += a.time_spent_seconds;
-      map.set(key, g);
-    };
-    add(byDifficulty, a.question.difficulty);
-    add(byDomain, a.question.domain);
-    add(bySkill, a.question.skill);
-    const arr = skillAttemptSeq.get(a.question.skill) || [];
-    arr.push(a);
-    skillAttemptSeq.set(a.question.skill, arr);
-  }
-  skillAttemptSeq.forEach((arr, skill) => {
-    const mid = Math.floor(arr.length / 2);
-    const acc = (rows: AttemptRow[]) => {
-      const g = emptyGroup();
-      rows.forEach((r) => {
-        g.total++;
-        if (r.is_correct) g.correct++;
-      });
-      return g;
-    };
-    bySkillHalves.set(skill, { first: acc(arr.slice(0, mid)), second: acc(arr.slice(mid)), count: arr.length });
-  });
-
-  const avgTime = overall.total ? Math.round(overall.seconds / overall.total) : 0;
-
-  // Confidence-adjusted "true mastery": correct AND marked confident.
-  const confident = attempts.filter((a) => a.confidence === "confident");
-  const confidentCorrect = confident.filter((a) => a.is_correct).length;
-  const luckyGuesses = attempts.filter((a) => a.confidence === "guessed" && a.is_correct).length;
-
-  // Daily accuracy trend.
-  const byDay = new Map<string, Group>();
-  for (const a of attempts) {
-    const day = a.created_at.slice(0, 10);
-    const g = byDay.get(day) || emptyGroup();
-    g.total++;
-    if (a.is_correct) g.correct++;
-    byDay.set(day, g);
-  }
-  const trend: TrendPoint[] = Array.from(byDay.entries())
-    .sort((x, y) => x[0].localeCompare(y[0]))
-    .map(([day, g]) => ({
-      label: new Date(day).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-      accuracy: pct(g),
-      total: g.total,
-    }));
-
-  // Weak skills (meaningful sample, below threshold).
-  const weakSkills = Array.from(bySkill.entries())
-    .filter(([, g]) => g.total >= 3 && g.correct / g.total < WEAKNESS_THRESHOLD)
-    .sort((a, b) => pct(a[1]) - pct(b[1]));
-
-  if (overall.total === 0) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-lg font-semibold text-slate-800">No attempts yet</p>
-          <p className="mt-1 text-sm text-slate-500">
-            {bankSize > 0
-              ? `You have ${bankSize} questions in your bank. Start a session to track your stats.`
-              : "Import some question PDFs, then start practicing."}
-          </p>
-          <div className="mt-4 flex justify-center gap-3">
-            <Link href="/practice" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Start practicing</Link>
-            <Link href="/import" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Import PDFs</Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const tabs = ["All", ...presentTests];
 
   return (
     <div className="space-y-8">
@@ -165,114 +258,125 @@ export default function DashboardPage() {
 
       {/* Tiles */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatTile label="Overall accuracy" value={`${pct(overall)}%`} sub={`${overall.correct}/${overall.total} correct`} />
-        <StatTile label="Questions done" value={`${overall.total}`} sub={`${bankSize} in bank`} />
-        <StatTile label="Total time" value={fmtTime(overall.seconds)} sub="across all sessions" />
-        <StatTile label="Avg / question" value={`${avgTime}s`} sub="time spent" />
+        <StatTile label="Overall accuracy" value={`${tiles.accuracy}%`} sub={`${tiles.overallCorrect}/${tiles.totalAttempts} answered`} />
+        <StatTile label="Coverage" value={`${tiles.covered}/${tiles.bankTotal}`} sub="questions practiced" />
+        <StatTile label="Total time" value={fmtTime(tiles.totalSeconds)} sub="across all sessions" />
+        <StatTile label="Last 7 days" value={`${tiles.weekCount}`} sub="questions answered" />
       </div>
 
-      {/* Confidence insight */}
-      {confident.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-          <span className="font-semibold text-slate-800">True mastery: </span>
-          {confidentCorrect}/{confident.length} of the questions you felt confident about were correct
-          {luckyGuesses > 0 && <> · {luckyGuesses} right answer{luckyGuesses === 1 ? " was" : "s were"} lucky guesses</>}.
-        </div>
-      )}
-
-      {/* Weakness warnings */}
-      {weakSkills.length > 0 && (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
-            <span>⚠️</span> Skills below {Math.round(WEAKNESS_THRESHOLD * 100)}% — review the material before drilling these again
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {weakSkills.map(([skill, g]) => (
-              <span key={skill} className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs text-amber-800">
-                {skill}: <strong>{pct(g)}%</strong>
-              </span>
-            ))}
+      {tiles.totalAttempts === 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+          <p className="font-medium text-slate-800">No practice yet</p>
+          <p className="mt-1 text-sm text-slate-500">Start a session — your daily activity and per-topic stats will build up here.</p>
+          <div className="mt-4 flex justify-center gap-3">
+            <Link href="/practice" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Start practicing</Link>
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Progress over time */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">Accuracy over time</h2>
+      {/* Daily activity */}
+      <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <AccuracyTrend points={trend} />
+          <h2 className="mb-2 text-sm font-semibold text-slate-700">Questions per day <span className="font-normal text-slate-400">· last {WINDOW_DAYS} days</span></h2>
+          <DailyBars bars={questionBars} color="#4f46e5" />
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="mb-2 text-sm font-semibold text-slate-700">Time per day <span className="font-normal text-slate-400">· minutes</span></h2>
+          <DailyBars bars={minuteBars} color="#0d9488" suffix="m" />
         </div>
       </section>
 
-      {/* By difficulty */}
+      {/* By topic */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">Accuracy by difficulty</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {DIFFICULTIES.map((d) => {
-            const g = byDifficulty.get(d) || emptyGroup();
-            const colorBar = d === "Easy" ? "bg-emerald-500" : d === "Medium" ? "bg-amber-500" : "bg-rose-500";
-            return (
-              <div key={d} className="rounded-lg border border-slate-200 bg-white p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className={`rounded border px-2 py-0.5 text-xs ${DIFFICULTY_COLORS[d]}`}>{d}</span>
-                  <span className="text-lg font-bold text-slate-800">{pct(g)}%</span>
-                </div>
-                <AccuracyBar value={pct(g)} color={colorBar} />
-                <p className="mt-2 text-xs text-slate-500">{g.correct}/{g.total} correct · {g.total ? Math.round(g.seconds / g.total) : 0}s avg</p>
-              </div>
-            );
-          })}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-700">By topic</h2>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Sort:</span>
+            <select value={sort} onChange={(e) => setSort(e.target.value as any)} className="rounded-md border border-slate-300 px-2 py-1">
+              <option value="attention">Needs attention</option>
+              <option value="accuracy">Lowest accuracy</option>
+              <option value="coverage">Least covered</option>
+              <option value="az">A–Z</option>
+            </select>
+          </div>
         </div>
-      </section>
 
-      {/* By skill with trend arrows */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-slate-700">Accuracy by skill</h2>
+        {/* tabs */}
+        <div className="mb-3 flex flex-wrap gap-1">
+          {tabs.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === t ? "bg-brand-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-2 font-medium">Skill</th>
-                <th className="px-4 py-2 font-medium">Attempts</th>
-                <th className="px-4 py-2 font-medium">Accuracy</th>
-                <th className="px-4 py-2 font-medium">Trend</th>
+                <th className="px-3 py-2 font-medium">Topic</th>
+                <th className="px-3 py-2 font-medium">Done / avail</th>
+                <th className="px-3 py-2 font-medium">7d</th>
+                <th className="px-3 py-2 font-medium">Accuracy</th>
+                <th className="px-3 py-2 font-medium">Avg time</th>
+                <th className="px-3 py-2 font-medium">Trend</th>
+                <th className="px-3 py-2 font-medium">Last done</th>
               </tr>
             </thead>
             <tbody>
-              {Array.from(bySkill.entries())
-                .sort((a, b) => pct(a[1]) - pct(b[1]))
-                .map(([skill, g]) => {
-                  const halves = bySkillHalves.get(skill);
-                  let trendEl = <span className="text-slate-300">—</span>;
-                  if (halves && halves.count >= 4 && halves.first.total && halves.second.total) {
-                    const delta = pct(halves.second) - pct(halves.first);
-                    if (delta > 5) trendEl = <span className="text-emerald-600">▲ +{delta}%</span>;
-                    else if (delta < -5) trendEl = <span className="text-rose-600">▼ {delta}%</span>;
-                    else trendEl = <span className="text-slate-400">≈ steady</span>;
-                  }
-                  const below = g.correct / g.total < WEAKNESS_THRESHOLD;
-                  return (
-                    <tr key={skill} className={`border-b border-slate-100 last:border-0 ${below ? "bg-amber-50/40" : ""}`}>
-                      <td className="px-4 py-2 text-slate-700">
-                        {skill}
-                        {below && <span className="ml-2 text-xs text-amber-600">⚠️</span>}
-                      </td>
-                      <td className="px-4 py-2 text-slate-500">{g.total}</td>
-                      <td className="px-4 py-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-10 font-semibold text-slate-800">{pct(g)}%</span>
-                          <div className="w-24">
-                            <AccuracyBar value={pct(g)} color={pct(g) >= 70 ? "bg-emerald-500" : pct(g) >= 40 ? "bg-amber-500" : "bg-rose-500"} />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2 text-xs font-medium">{trendEl}</td>
-                    </tr>
-                  );
-                })}
+              {visibleSkills.map((s) => {
+                const a = acc(s.attempts, s.correct);
+                const weak = s.attempts >= 3 && s.correct / s.attempts < WEAKNESS_THRESHOLD;
+                const neglected = s.attempts === 0 || (s.lastMs != null && Date.now() - s.lastMs > NEGLECT_DAYS * DAY_MS);
+                const done = s.available ? Math.min(s.distinct.size, s.available) : s.distinct.size;
+                let trend = <span className="text-slate-300">—</span>;
+                if (s.firstHalf.t && s.secondHalf.t && s.attempts >= 4) {
+                  const d = acc(s.secondHalf.t, s.secondHalf.c) - acc(s.firstHalf.t, s.firstHalf.c);
+                  if (d > 5) trend = <span className="text-emerald-600">▲ +{d}%</span>;
+                  else if (d < -5) trend = <span className="text-rose-600">▼ {d}%</span>;
+                  else trend = <span className="text-slate-400">≈</span>;
+                }
+                return (
+                  <tr key={s.skill} className={`border-b border-slate-100 last:border-0 ${weak ? "bg-amber-50/50" : ""}`}>
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-slate-700">
+                        {s.skill}
+                        {weak && <span className="ml-2 text-xs text-amber-600">⚠️ review</span>}
+                      </div>
+                      {tab === "All" && <div className="text-[11px] text-slate-400">{s.test} · {s.domain}</div>}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">
+                      {done}<span className="text-slate-400"> / {s.available}</span>
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">{s.recent}</td>
+                    <td className="px-3 py-2">
+                      {s.attempts ? (
+                        <span className={`font-semibold ${a >= 70 ? "text-emerald-700" : a >= 40 ? "text-amber-700" : "text-rose-700"}`}>{a}%</span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-slate-600">{s.attempts ? `${Math.round(s.seconds / s.attempts)}s` : "—"}</td>
+                    <td className="px-3 py-2 text-xs font-medium">{trend}</td>
+                    <td className="px-3 py-2 text-xs">
+                      <span className={neglected ? "text-rose-500" : "text-slate-500"}>{daysAgoLabel(s.lastMs)}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {visibleSkills.length === 0 && (
+                <tr><td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-400">No topics in this tab yet.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
+        <p className="mt-2 text-xs text-slate-400">
+          &ldquo;Done / avail&rdquo; counts questions you&apos;ve answered in each topic against the total in the bank. Rows in amber are below {Math.round(WEAKNESS_THRESHOLD * 100)}%. &ldquo;Last done&rdquo; in red means it hasn&apos;t been practiced in over {NEGLECT_DAYS} days.
+        </p>
       </section>
     </div>
   );
