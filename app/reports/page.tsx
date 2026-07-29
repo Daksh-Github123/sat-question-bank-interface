@@ -2,8 +2,17 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { WEAKNESS_THRESHOLD } from "@/lib/practice";
 import { currentUserId } from "@/lib/user";
+
+interface QuestionMeta {
+  question_id: string;
+  skill: string;
+  difficulty: string;
+  correct_answer: string;
+  question_text: string;
+  choices: { letter: string; text: string }[] | null;
+  rationale: string | null;
+}
 
 interface AttemptRow {
   question_uid: string;
@@ -13,11 +22,25 @@ interface AttemptRow {
   confidence: string | null;
   miss_reason: string | null;
   created_at: string;
-  question: { question_id: string; skill: string; difficulty: string; correct_answer: string } | null;
+  question: QuestionMeta | null;
 }
 
 function iso(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+const MISS_REASON_TEXT: Record<string, string> = {
+  concept: "didn't know the concept",
+  careless: "careless mistake",
+  time: "ran out of time",
+  misread: "misread the question",
+};
+
+// RED < 70, YELLOW 70–84, GREEN 85+
+function skillStatus(pct: number): string {
+  if (pct < 70) return "RED";
+  if (pct < 85) return "YELLOW";
+  return "GREEN";
 }
 
 export default function ReportsPage() {
@@ -34,12 +57,13 @@ export default function ReportsPage() {
     setBusy(true);
     setReport("");
     setCopied(false);
+    const uid = currentUserId();
     const startTs = new Date(start + "T00:00:00").toISOString();
     const endTs = new Date(end + "T23:59:59").toISOString();
     const { data } = await supabase
       .from("attempts")
-      .select("question_uid, is_correct, selected_answer, time_spent_seconds, confidence, miss_reason, created_at, question:questions(question_id, skill, difficulty, correct_answer)")
-      .eq("user_id", currentUserId())
+      .select("question_uid, is_correct, selected_answer, time_spent_seconds, confidence, miss_reason, created_at, question:questions(question_id, skill, difficulty, correct_answer, question_text, choices, rationale)")
+      .eq("user_id", uid)
       .gte("created_at", startTs)
       .lte("created_at", endTs)
       .order("created_at", { ascending: true })
@@ -52,27 +76,61 @@ export default function ReportsPage() {
       return;
     }
 
+    // Per-difficulty aggregation.
+    const byDiff = new Map<string, { total: number; correct: number }>();
     // Per-skill aggregation.
-    const bySkill = new Map<string, { total: number; correct: number; seconds: number; last: string }>();
+    const bySkill = new Map<string, { total: number; correct: number; last: string }>();
     for (const r of rows) {
+      const d = r.question!.difficulty;
+      const dg = byDiff.get(d) || { total: 0, correct: 0 };
+      dg.total++;
+      if (r.is_correct) dg.correct++;
+      byDiff.set(d, dg);
+
       const s = r.question!.skill;
-      const g = bySkill.get(s) || { total: 0, correct: 0, seconds: 0, last: r.created_at };
+      const g = bySkill.get(s) || { total: 0, correct: 0, last: r.created_at };
       g.total++;
       if (r.is_correct) g.correct++;
-      g.seconds += r.time_spent_seconds;
       if (r.created_at > g.last) g.last = r.created_at;
       bySkill.set(s, g);
     }
 
     // Missed questions (latest attempt in range that was wrong).
     const latest = new Map<string, AttemptRow>();
-    for (const r of rows) latest.set(r.question_uid, r); // rows are ascending, so last wins
+    for (const r of rows) latest.set(r.question_uid, r); // rows ascending, so last wins
     const missed = Array.from(latest.values()).filter((r) => !r.is_correct);
+
+    // Correct-but-guessed (latest attempt in range, correct AND tagged as a guess).
+    const guessedCorrect = Array.from(latest.values()).filter(
+      (r) => r.is_correct && r.confidence === "guessed"
+    );
+    const anyConfidenceTag = rows.some((r) => r.confidence);
+
+    // Flagged questions the user has marked to revisit (all outstanding flags).
+    const { data: flagData } = await supabase
+      .from("question_state")
+      .select("question_uid")
+      .eq("user_id", uid)
+      .eq("flagged", true)
+      .limit(20000);
+    const flaggedIds = ((flagData as { question_uid: string }[]) || []).map((f) => f.question_uid);
+    let flaggedMeta: QuestionMeta[] = [];
+    if (flaggedIds.length) {
+      const { data: fq } = await supabase
+        .from("questions")
+        .select("question_id, skill, difficulty, correct_answer, question_text, choices, rationale")
+        .in("id", flaggedIds)
+        .limit(20000);
+      flaggedMeta = ((fq as unknown as QuestionMeta[]) || []).sort((a, b) =>
+        a.skill.localeCompare(b.skill)
+      );
+    }
 
     const total = rows.length;
     const correct = rows.filter((r) => r.is_correct).length;
     const seconds = rows.reduce((a, r) => a + r.time_spent_seconds, 0);
     const acc = Math.round((correct / total) * 100);
+    const pct = (c: number, t: number) => (t ? Math.round((c / t) * 100) : 0);
 
     const lines: string[] = [];
     lines.push(`SAT PRACTICE REPORT`);
@@ -83,14 +141,37 @@ export default function ReportsPage() {
     lines.push(`- Correct: ${correct} (${acc}% accuracy)`);
     lines.push(`- Time spent: ${Math.round(seconds / 60)} min (${total ? Math.round(seconds / total) : 0}s avg/question)`);
     lines.push(``);
+    lines.push(`BY DIFFICULTY`);
+    ["Easy", "Medium", "Hard"].forEach((d) => {
+      const g = byDiff.get(d) || { total: 0, correct: 0 };
+      lines.push(`- ${d}: ${g.correct}/${g.total} (${pct(g.correct, g.total)}%)`);
+    });
+    lines.push(``);
     lines.push(`BY SKILL`);
     Array.from(bySkill.entries())
       .sort((a, b) => a[1].correct / a[1].total - b[1].correct / b[1].total)
       .forEach(([skill, g]) => {
-        const a = Math.round((g.correct / g.total) * 100);
-        const statusTag = g.correct / g.total < WEAKNESS_THRESHOLD ? "NEEDS WORK" : "OK";
-        lines.push(`- ${skill}: ${g.correct}/${g.total} (${a}%) [${statusTag}] · last practiced ${g.last.slice(0, 10)}`);
+        const a = pct(g.correct, g.total);
+        lines.push(`- ${skill}: ${g.correct}/${g.total} (${a}%) [${skillStatus(a)}] · last practiced ${g.last.slice(0, 10)}`);
       });
+    lines.push(``);
+    lines.push(`FLAGGED (${flaggedMeta.length})`);
+    if (flaggedMeta.length === 0) {
+      lines.push(`- none flagged to revisit`);
+    } else {
+      flaggedMeta.forEach((q) => {
+        lines.push(`- [${q.question_id}] ${q.skill} (${q.difficulty})`);
+      });
+    }
+    if (anyConfidenceTag) {
+      lines.push(``);
+      lines.push(`CORRECT BUT GUESSED (${guessedCorrect.length})`);
+      if (guessedCorrect.length === 0) {
+        lines.push(`- none`);
+      } else {
+        lines.push(`- ${guessedCorrect.map((r) => r.question!.question_id).join(", ")}`);
+      }
+    }
     lines.push(``);
     lines.push(`MISSED QUESTIONS (${missed.length})`);
     if (missed.length === 0) {
@@ -98,8 +179,14 @@ export default function ReportsPage() {
     } else {
       missed.forEach((r) => {
         const q = r.question!;
-        const reason = r.miss_reason ? ` · reason: ${r.miss_reason}` : "";
-        lines.push(`- [${q.question_id}] ${q.skill} (${q.difficulty}): you="${r.selected_answer ?? "—"}" correct="${q.correct_answer}"${reason}`);
+        const reason = r.miss_reason ? MISS_REASON_TEXT[r.miss_reason] || r.miss_reason : "untagged";
+        lines.push(``);
+        lines.push(`[${q.question_id}] ${q.skill} (${q.difficulty}) · you=${r.selected_answer ?? "—"} correct=${q.correct_answer} · reason=${reason}`);
+        lines.push(`Question: ${(q.question_text || "").trim()}`);
+        (q.choices || []).forEach((c) => {
+          lines.push(`${c.letter}. ${c.text}`);
+        });
+        lines.push(`Rationale: ${(q.rationale || "—").trim()}`);
       });
     }
 
