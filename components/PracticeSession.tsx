@@ -58,6 +58,8 @@ export default function PracticeSession({
   const [confidence, setConfidence] = useState<Confidence | null>(null);
   const [missReason, setMissReason] = useState<MissReason | null>(null);
   const [flags, setFlags] = useState<Set<string>>(new Set());
+  // Crossed-out MCQ options (local elimination aid, reset per question).
+  const [crossed, setCrossed] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState<Map<string, string>>(new Map());
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -98,6 +100,7 @@ export default function PracticeSession({
     setSelected(null);
     setRevealed(false);
     setPaused(false);
+    setCrossed(new Set());
     setAttemptId(null);
     setConfidence(null);
     setMissReason(null);
@@ -167,6 +170,18 @@ export default function PracticeSession({
 
   // Save a highlighted term to the vocabulary bank: look up a definition and use
   // the dictionary's example, or fall back to the sentence it appeared in.
+  // Toggle an option's crossed-out state; clear the selection if we cross the
+  // option that was currently picked.
+  function toggleCross(letter: string) {
+    setCrossed((prev) => {
+      const next = new Set(prev);
+      if (next.has(letter)) next.delete(letter);
+      else next.add(letter);
+      return next;
+    });
+    if (selected === letter) setSelected(null);
+  }
+
   async function saveVocab(term: string) {
     const { definition, example } = await dictionaryLookup(term);
     const sentence = example ?? sentenceFor(q.question_text, term);
@@ -419,6 +434,8 @@ export default function PracticeSession({
             q.choices.map((c) => {
               const isCorrect = c.letter === q.correct_answer;
               const isChosen = c.letter === selected;
+              const isCrossed = crossed.has(c.letter);
+              const dim = isCrossed && !revealed;
               let cls = "border-slate-200 hover:border-brand-400";
               if (revealed) {
                 if (isCorrect) cls = "border-emerald-400 bg-emerald-50";
@@ -426,19 +443,35 @@ export default function PracticeSession({
                 else cls = "border-slate-200 opacity-70";
               } else if (isChosen) cls = "border-brand-500 bg-brand-50";
               return (
-                <button
+                <div
                   key={c.letter}
-                  disabled={revealed}
-                  onClick={() => setSelected(c.letter)}
-                  className={`flex w-full items-start gap-3 rounded-lg border p-3 text-left text-sm transition-colors ${cls}`}
+                  className={`flex items-stretch rounded-lg border text-sm transition-colors ${cls}`}
                 >
-                  <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full border border-current text-xs font-semibold">
-                    {c.letter}
-                  </span>
-                  <span className="text-slate-700">{c.text}</span>
-                  {revealed && isCorrect && <span className="ml-auto text-emerald-600">✓</span>}
-                  {revealed && isChosen && !isCorrect && <span className="ml-auto text-rose-600">✗</span>}
-                </button>
+                  <button
+                    disabled={revealed || isCrossed}
+                    onClick={() => setSelected(c.letter)}
+                    className="flex flex-1 items-start gap-3 p-3 text-left disabled:cursor-default"
+                  >
+                    <span
+                      className={`flex h-6 w-6 flex-none items-center justify-center rounded-full border border-current text-xs font-semibold ${dim ? "opacity-40" : ""}`}
+                    >
+                      {c.letter}
+                    </span>
+                    <span className={`text-slate-700 ${dim ? "line-through opacity-40" : ""}`}>{c.text}</span>
+                    {revealed && isCorrect && <span className="ml-auto text-emerald-600">✓</span>}
+                    {revealed && isChosen && !isCorrect && <span className="ml-auto text-rose-600">✗</span>}
+                  </button>
+                  {!revealed && (
+                    <button
+                      onClick={() => toggleCross(c.letter)}
+                      title={isCrossed ? "Undo cross out" : "Cross out this option"}
+                      aria-label={isCrossed ? `Undo cross out ${c.letter}` : `Cross out ${c.letter}`}
+                      className="flex-none border-l border-slate-200 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                    >
+                      {isCrossed ? "undo" : <span className="line-through">{c.letter}</span>}
+                    </button>
+                  )}
+                </div>
               );
             })
           ) : (
