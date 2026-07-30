@@ -8,6 +8,10 @@ import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { updateSessionProgress, completeSession } from "@/lib/practice";
 import { getQuestionStates, setFlag as persistFlag, setNote as persistNote } from "@/lib/questionState";
 import { currentUserId } from "@/lib/user";
+import { isAnswerCorrect } from "@/lib/answerCheck";
+import { saveTerm, sentenceFor } from "@/lib/vocab";
+import { lookup as dictionaryLookup } from "@/lib/dictionary";
+import VocabCapture from "./VocabCapture";
 
 interface Props {
   questions: Question[];
@@ -138,7 +142,7 @@ export default function PracticeSession({
   const submit = useCallback(async () => {
     if (revealed || !q) return;
     const spent = Math.floor((Date.now() - startRef.current) / 1000);
-    const correct = !!selected && selected === q.correct_answer;
+    const correct = isAnswerCorrect(selected, q);
     setRevealed(true);
     setAnswers((prev) => [...prev, { question: q, selected, correct, seconds: spent }]);
     // Record attempt; capture id so confidence / miss-reason can update it.
@@ -160,6 +164,14 @@ export default function PracticeSession({
     updateSessionProgress(sessionId, index + 1, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealed, q, selected, mode, sessionId, index]);
+
+  // Save a highlighted term to the vocabulary bank: look up a definition and use
+  // the dictionary's example, or fall back to the sentence it appeared in.
+  async function saveVocab(term: string) {
+    const { definition, example } = await dictionaryLookup(term);
+    const sentence = example ?? sentenceFor(q.question_text, term);
+    await saveTerm({ term, definition, example: sentence, sourceQuestionUid: q.id });
+  }
 
   // Timer mode: auto-submit when the per-question clock runs out.
   useEffect(() => {
@@ -391,7 +403,15 @@ export default function PracticeSession({
             </button>
           </div>
         ) : (
-          <>
+          <VocabCapture enabled={revealed} onSave={saveVocab}>
+        {q.graph_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={q.graph_url}
+            alt="Question graphic"
+            className="mb-4 max-w-full rounded-lg border border-slate-200"
+          />
+        )}
         <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-800">{q.question_text}</p>
 
         <div className="mt-5 space-y-2">
@@ -439,7 +459,7 @@ export default function PracticeSession({
             </div>
           )}
         </div>
-          </>
+          </VocabCapture>
         )}
 
         <div className="mt-5 flex items-center justify-between">
@@ -476,6 +496,9 @@ export default function PracticeSession({
       {/* Post-answer: confidence, miss-reason, note, rationale */}
       {revealed && (
         <div className="space-y-3">
+          <p className="text-xs text-slate-400">
+            Tip: highlight any word or phrase in the question above to save it to your vocabulary.
+          </p>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
               <div className="flex items-center gap-2">

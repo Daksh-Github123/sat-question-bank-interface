@@ -8,6 +8,11 @@ export interface Choice {
   text: string;
 }
 
+/** Optional spec for grid-in answers that accept a range or several values. */
+export type AcceptedAnswers =
+  | { type: "list"; values: string[] }
+  | { type: "range"; min: number; max: number; minExclusive?: boolean; maxExclusive?: boolean };
+
 export interface Question {
   id: string;
   question_id: string;
@@ -20,7 +25,21 @@ export interface Question {
   correct_answer: string;
   rationale: string | null;
   source_file: string | null;
+  graph_url: string | null;
+  accepted_answers: AcceptedAnswers | null;
   created_at: string;
+}
+
+export interface VocabularyItem {
+  id: string;
+  term: string;
+  term_key: string;
+  definition: string | null;
+  example: string | null;
+  source_question_uid: string | null;
+  count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 /** Shape produced by the PDF parser before insertion (no db id yet). */
