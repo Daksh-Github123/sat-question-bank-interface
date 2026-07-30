@@ -70,7 +70,9 @@ export default function DashboardPage() {
   const [sort, setSort] = useState<"attention" | "accuracy" | "coverage" | "az">("attention");
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+
+    async function load() {
       const uid = currentUserId();
       // attempts (this user) ascending for trend halves
       const { data: att } = await supabase
@@ -79,7 +81,7 @@ export default function DashboardPage() {
         .eq("user_id", uid)
         .order("created_at", { ascending: true })
         .limit(50000);
-      setAttempts((att as unknown as AttemptRow[]) || []);
+      if (!cancelled) setAttempts((att as unknown as AttemptRow[]) || []);
 
       // bank meta (shared) — paged
       const rows: BankRow[] = [];
@@ -93,9 +95,25 @@ export default function DashboardPage() {
         rows.push(...(data as BankRow[]));
         if (data.length < pageSize) break;
       }
-      setBank(rows);
-      setLoading(false);
-    })();
+      if (!cancelled) {
+        setBank(rows);
+        setLoading(false);
+      }
+    }
+
+    load();
+    // Refresh whenever the dashboard regains focus, so stats/graphs reflect a
+    // session you just finished without a manual reload.
+    const onFocus = () => {
+      if (document.visibilityState !== "hidden") load();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, []);
 
   // ---- derived ----

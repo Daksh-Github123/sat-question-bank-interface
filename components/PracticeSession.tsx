@@ -447,29 +447,40 @@ export default function PracticeSession({
                   key={c.letter}
                   className={`flex items-stretch rounded-lg border text-sm transition-colors ${cls}`}
                 >
-                  <button
-                    disabled={revealed || isCrossed}
-                    onClick={() => setSelected(c.letter)}
-                    className="flex flex-1 items-start gap-3 p-3 text-left disabled:cursor-default"
-                  >
-                    <span
-                      className={`flex h-6 w-6 flex-none items-center justify-center rounded-full border border-current text-xs font-semibold ${dim ? "opacity-40" : ""}`}
-                    >
-                      {c.letter}
-                    </span>
-                    <span className={`text-slate-700 ${dim ? "line-through opacity-40" : ""}`}>{c.text}</span>
-                    {revealed && isCorrect && <span className="ml-auto text-emerald-600">✓</span>}
-                    {revealed && isChosen && !isCorrect && <span className="ml-auto text-rose-600">✗</span>}
-                  </button>
-                  {!revealed && (
-                    <button
-                      onClick={() => toggleCross(c.letter)}
-                      title={isCrossed ? "Undo cross out" : "Cross out this option"}
-                      aria-label={isCrossed ? `Undo cross out ${c.letter}` : `Cross out ${c.letter}`}
-                      className="flex-none border-l border-slate-200 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-700"
-                    >
-                      {isCrossed ? "undo" : <span className="line-through">{c.letter}</span>}
-                    </button>
+                  {revealed ? (
+                    // After answering: a plain, text-selectable row so option words
+                    // can be highlighted and saved to the vocabulary bank.
+                    <div className="flex flex-1 items-start gap-3 p-3 text-left select-text">
+                      <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full border border-current text-xs font-semibold">
+                        {c.letter}
+                      </span>
+                      <span className="select-text text-slate-700">{c.text}</span>
+                      {isCorrect && <span className="ml-auto text-emerald-600">✓</span>}
+                      {isChosen && !isCorrect && <span className="ml-auto text-rose-600">✗</span>}
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        disabled={isCrossed}
+                        onClick={() => setSelected(c.letter)}
+                        className="flex flex-1 items-start gap-3 p-3 text-left disabled:cursor-default"
+                      >
+                        <span
+                          className={`flex h-6 w-6 flex-none items-center justify-center rounded-full border border-current text-xs font-semibold ${dim ? "opacity-40" : ""}`}
+                        >
+                          {c.letter}
+                        </span>
+                        <span className={`text-slate-700 ${dim ? "line-through opacity-40" : ""}`}>{c.text}</span>
+                      </button>
+                      <button
+                        onClick={() => toggleCross(c.letter)}
+                        title={isCrossed ? "Undo cross out" : "Cross out this option"}
+                        aria-label={isCrossed ? `Undo cross out ${c.letter}` : `Cross out ${c.letter}`}
+                        className="flex-none border-l border-slate-200 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                      >
+                        {isCrossed ? "undo" : <span className="line-through">{c.letter}</span>}
+                      </button>
+                    </>
                   )}
                 </div>
               );

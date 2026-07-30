@@ -5,13 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/lib/userContext";
 import { clearCurrentUser } from "@/lib/user";
 
+// Primary daily-use tabs. Less-used areas (Browse, Reports, Import, Admin) and
+// Session History live on the "More" hub page to keep the top bar uncluttered.
 const baseLinks = [
   { href: "/", label: "Dashboard" },
   { href: "/practice", label: "Practice" },
   { href: "/review", label: "Review" },
-  { href: "/browse", label: "Browse" },
   { href: "/vocabulary", label: "Vocabulary" },
-  { href: "/reports", label: "Reports" },
+  { href: "/more", label: "More" },
 ];
 
 export default function NavBar() {
@@ -19,11 +20,7 @@ export default function NavBar() {
   const router = useRouter();
   const { user, setUser } = useUser();
 
-  const links = [...baseLinks];
-  if (user?.is_admin) {
-    links.push({ href: "/import", label: "Import" });
-    links.push({ href: "/admin", label: "Admin" });
-  }
+  const links = baseLinks;
 
   function logout() {
     clearCurrentUser();
