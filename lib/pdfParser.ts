@@ -2,6 +2,7 @@
 
 import type { ParsedQuestion, Choice } from "./types";
 import { TESTS, DOMAINS } from "./taxonomy";
+import { makeRepairer } from "./textRepair";
 
 const DIFFICULTIES = ["Easy", "Medium", "Hard"];
 
@@ -126,7 +127,17 @@ export async function parsePdf(
   const lines = await extractLines(buffer);
   const full = lines.join("\n");
   const blocks = full.split(/(?=Question ID:)/).filter((b) => /Question ID:/.test(b));
-  return blocks
+  const parsed = blocks
     .map((b) => parseBlock(b, sourceFile))
     .filter((q): q is ParsedQuestion => q !== null && !!q.question_id);
+
+  // Repair stray mid-word spaces introduced by PDF text extraction so imported
+  // questions read cleanly (e.g. "suppor t" -> "support").
+  const fix = await makeRepairer();
+  for (const q of parsed) {
+    q.question_text = fix(q.question_text);
+    q.rationale = fix(q.rationale);
+    if (q.choices) q.choices = q.choices.map((c) => ({ ...c, text: fix(c.text) }));
+  }
+  return parsed;
 }
