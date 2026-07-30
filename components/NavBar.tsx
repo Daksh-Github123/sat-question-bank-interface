@@ -10,6 +10,7 @@ const baseLinks = [
   { href: "/practice", label: "Practice" },
   { href: "/review", label: "Review" },
   { href: "/browse", label: "Browse" },
+  { href: "/vocabulary", label: "Vocabulary" },
   { href: "/reports", label: "Reports" },
 ];
 

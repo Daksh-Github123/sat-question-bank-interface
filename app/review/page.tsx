@@ -198,6 +198,10 @@ export default function ReviewPage() {
 
                   {open && (
                     <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                      {q.graph_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={q.graph_url} alt="Question graphic" className="max-w-full rounded-lg border border-slate-200" />
+                      )}
                       <p className="whitespace-pre-wrap text-sm text-slate-700">{q.question_text}</p>
                       {q.choices && (
                         <ul className="space-y-1 text-sm">

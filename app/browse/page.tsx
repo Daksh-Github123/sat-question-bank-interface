@@ -135,6 +135,10 @@ export default function BrowsePage() {
 
               {expanded === q.id && (
                 <div className="mt-3 border-t border-slate-100 pt-3 text-sm">
+                  {q.graph_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={q.graph_url} alt="Question graphic" className="mb-3 max-w-full rounded-lg border border-slate-200" />
+                  )}
                   <p className="whitespace-pre-wrap text-slate-700">{q.question_text}</p>
                   {q.choices && (
                     <ul className="mt-3 space-y-1">
