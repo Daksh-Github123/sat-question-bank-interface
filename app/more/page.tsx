@@ -13,6 +13,11 @@ interface AttemptAgg {
   time_spent_seconds: number;
 }
 
+// A session is only genuinely resumable (and worth flagging "in progress") while
+// it is unfinished AND recent — matching the Practice page's resume window. Older
+// abandoned sessions just show as normal past entries.
+const RESUMABLE_MS = 24 * 60 * 60 * 1000;
+
 const MODE_LABEL: Record<string, string> = {
   stopwatch: "Stopwatch",
   timer: "Per-question timer",
@@ -128,9 +133,10 @@ export default function MorePage() {
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                       {MODE_LABEL[s.mode] || s.mode}
                     </span>
-                    {s.status !== "completed" && (
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">in progress</span>
-                    )}
+                    {s.status !== "completed" &&
+                      Date.now() - new Date(s.updated_at).getTime() < RESUMABLE_MS && (
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">in progress</span>
+                      )}
                   </div>
                   <div className="flex items-center gap-5 text-sm">
                     <span className="text-slate-500">
