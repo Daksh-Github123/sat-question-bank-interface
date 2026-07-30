@@ -74,11 +74,22 @@ function parseBlock(block: string, sourceFile: string): ParsedQuestion | null {
   if (!idMatch) return null;
   const question_id = idMatch[1];
 
-  const metaLine = lines.find((l) => /^SAT\s/.test(l)) || "";
-  const { test, domain, skill, difficulty } = parseMeta(metaLine);
-
   const findIdx = (name: string) => lines.findIndex((l) => l === name);
   const qi = findIdx("Question");
+
+  // The metadata ("SAT <test> <domain> <skill> <difficulty>") is extracted as one
+  // line per table cell, so a long domain/skill wraps across several lines and
+  // would otherwise truncate the skill, domain, and difficulty (e.g. dropping
+  // "Purpose" from "Text Structure and Purpose", or losing "Standard English
+  // Conventions" and the difficulty entirely). Rejoin every line from the "SAT"
+  // line up to the "Question" marker to reconstruct the full metadata.
+  const startIdx = lines.findIndex((l) => /^SAT\s/.test(l));
+  let metaLine = "";
+  if (startIdx >= 0) {
+    const end = qi > startIdx ? qi : Math.min(lines.length, startIdx + 6);
+    metaLine = lines.slice(startIdx, end).join(" ").trim();
+  }
+  const { test, domain, skill, difficulty } = parseMeta(metaLine);
   const ai = findIdx("Answer");
   const ri = findIdx("Rationale");
   const caLine = lines.find((l) => /^Correct Answer:/.test(l));
