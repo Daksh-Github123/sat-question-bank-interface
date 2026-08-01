@@ -27,6 +27,7 @@ export interface Question {
   source_file: string | null;
   graph_url: string | null;
   accepted_answers: AcceptedAnswers | null;
+  needs_graphic: boolean;
   created_at: string;
 }
 

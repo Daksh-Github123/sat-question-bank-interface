@@ -19,6 +19,8 @@ interface MetaRow {
   domain: string;
   skill: string;
   difficulty: string;
+  needs_graphic: boolean;
+  graph_url: string | null;
 }
 
 export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) => void }) {
@@ -46,7 +48,7 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       for (let from = 0; ; from += pageSize) {
         const { data, error } = await supabase
           .from("questions")
-          .select("id, test, domain, skill, difficulty")
+          .select("id, test, domain, skill, difficulty, needs_graphic, graph_url")
           .range(from, from + pageSize - 1);
         if (error) break;
         rows.push(...(data as MetaRow[]));
@@ -59,12 +61,14 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
   }, []);
 
   const isSeen = (r: MetaRow) => avoidSeen && attemptedIds.has(r.id);
+  // Questions that need a graph we don't have yet are not practiceable.
+  const isUnavailable = (r: MetaRow) => r.needs_graphic && !r.graph_url;
 
   const skillCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of meta) {
       if (!difficulties.has(r.difficulty)) continue;
-      if (isSeen(r)) continue;
+      if (isSeen(r) || isUnavailable(r)) continue;
       m.set(r.skill, (m.get(r.skill) || 0) + 1);
     }
     return m;
@@ -78,7 +82,8 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       (r) =>
         difficulties.has(r.difficulty) &&
         (selectedSkills.size === 0 || selectedSkills.has(r.skill)) &&
-        !isSeen(r)
+        !isSeen(r) &&
+        !isUnavailable(r)
     ).length;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, difficulties, selectedSkills, avoidSeen, attemptedIds]);

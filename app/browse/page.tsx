@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { Question } from "@/lib/types";
 import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { currentUserId } from "@/lib/user";
+import QuestionText from "@/components/QuestionText";
 
 type Status = "attempted" | "unattempted" | "wrong" | "correct" | "guessed" | "flagged";
 
@@ -135,11 +136,15 @@ export default function BrowsePage() {
 
               {expanded === q.id && (
                 <div className="mt-3 border-t border-slate-100 pt-3 text-sm">
-                  {q.graph_url && (
+                  {q.graph_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={q.graph_url} alt="Question graphic" className="mb-3 max-w-full rounded-lg border border-slate-200" />
-                  )}
-                  <p className="whitespace-pre-wrap text-slate-700">{q.question_text}</p>
+                  ) : q.needs_graphic ? (
+                    <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      ⚠ This question relies on a graph that isn&apos;t available yet, so it&apos;s hidden from practice.
+                    </p>
+                  ) : null}
+                  <QuestionText text={q.question_text} className="text-slate-700" />
                   {q.choices && (
                     <ul className="mt-3 space-y-1">
                       {q.choices.map((c) => (

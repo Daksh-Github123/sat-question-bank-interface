@@ -12,6 +12,7 @@ import { isAnswerCorrect } from "@/lib/answerCheck";
 import { saveTerm, sentenceFor } from "@/lib/vocab";
 import { lookup as dictionaryLookup } from "@/lib/dictionary";
 import VocabCapture from "./VocabCapture";
+import QuestionText from "./QuestionText";
 
 interface Props {
   questions: Question[];
@@ -427,7 +428,7 @@ export default function PracticeSession({
             className="mb-4 max-w-full rounded-lg border border-slate-200"
           />
         )}
-        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-800">{q.question_text}</p>
+        <QuestionText text={q.question_text} className="text-[15px] leading-relaxed text-slate-800" />
 
         <div className="mt-5 space-y-2">
           {q.choices ? (
