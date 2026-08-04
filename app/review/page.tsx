@@ -8,6 +8,7 @@ import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { REVIEW_INTERVAL_DAYS } from "@/lib/practice";
 import { setNote as persistNote } from "@/lib/questionState";
 import { currentUserId } from "@/lib/user";
+import QuestionText from "@/components/QuestionText";
 
 interface WrongItem {
   attemptId: string;
@@ -198,11 +199,15 @@ export default function ReviewPage() {
 
                   {open && (
                     <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
-                      {q.graph_url && (
+                      {q.graph_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={q.graph_url} alt="Question graphic" className="max-w-full rounded-lg border border-slate-200" />
-                      )}
-                      <p className="whitespace-pre-wrap text-sm text-slate-700">{q.question_text}</p>
+                      ) : q.needs_graphic ? (
+                        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                          ⚠ This question relies on a graph that isn&apos;t available yet.
+                        </p>
+                      ) : null}
+                      <QuestionText text={q.question_text} className="text-sm text-slate-700" />
                       {q.choices && (
                         <ul className="space-y-1 text-sm">
                           {q.choices.map((c) => (

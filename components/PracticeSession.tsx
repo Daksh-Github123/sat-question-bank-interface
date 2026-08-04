@@ -12,6 +12,7 @@ import { isAnswerCorrect } from "@/lib/answerCheck";
 import { saveTerm, sentenceFor } from "@/lib/vocab";
 import { lookup as dictionaryLookup } from "@/lib/dictionary";
 import VocabCapture from "./VocabCapture";
+import QuestionText from "./QuestionText";
 
 interface Props {
   questions: Question[];
@@ -63,7 +64,11 @@ export default function PracticeSession({
   const [notes, setNotes] = useState<Map<string, string>>(new Map());
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
-  const [phase, setPhase] = useState<"run" | "flagged" | "done">("run");
+  const [phase, setPhase] = useState<"run" | "flagged" | "done" | "review">("run");
+  // Module review: index into the questions while replaying answers, and the
+  // summary phase to return to when review is finished.
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [returnPhase, setReturnPhase] = useState<"flagged" | "done">("done");
 
   // Per-question clock baseline (accounts for resumed partial time).
   const startRef = useRef<number>(Date.now() - startElapsed * 1000);
@@ -142,13 +147,13 @@ export default function PracticeSession({
   const moduleRemaining =
     mode === "module" && totalSeconds ? Math.max(0, totalSeconds - moduleElapsed) : 0;
 
-  const submit = useCallback(async () => {
-    if (revealed || !q) return;
+  // Record the current answer (no UI change). Captures the attempt id so
+  // confidence / miss-reason can update it later.
+  const recordAttempt = useCallback(async () => {
+    if (!q) return;
     const spent = Math.floor((Date.now() - startRef.current) / 1000);
     const correct = isAnswerCorrect(selected, q);
-    setRevealed(true);
     setAnswers((prev) => [...prev, { question: q, selected, correct, seconds: spent }]);
-    // Record attempt; capture id so confidence / miss-reason can update it.
     const { data } = await supabase
       .from("attempts")
       .insert({
@@ -163,10 +168,24 @@ export default function PracticeSession({
       .select("id")
       .single();
     if (data) setAttemptId((data as any).id);
-    // Advance the saved pointer so resume lands on the next question.
     updateSessionProgress(sessionId, index + 1, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revealed, q, selected, mode, sessionId, index]);
+  }, [q, selected, mode, sessionId, index]);
+
+  // Standard modes: record and reveal the answer for immediate review.
+  const submit = useCallback(async () => {
+    if (revealed || !q) return;
+    setRevealed(true);
+    await recordAttempt();
+  }, [revealed, q, recordAttempt]);
+
+  // Module mode: record silently and move straight on — no per-question feedback.
+  // The whole module is reviewed at the end.
+  async function moduleAdvance() {
+    if (!q || selected === null || selected === "") return;
+    await recordAttempt();
+    next();
+  }
 
   // Save a highlighted term to the vocabulary bank: look up a definition and use
   // the dictionary's example, or fall back to the sentence it appeared in.
@@ -182,10 +201,10 @@ export default function PracticeSession({
     if (selected === letter) setSelected(null);
   }
 
-  async function saveVocab(term: string) {
+  async function addVocab(question: Question, term: string) {
     const { definition, example } = await dictionaryLookup(term);
-    const sentence = example ?? sentenceFor(q.question_text, term);
-    await saveTerm({ term, definition, example: sentence, sourceQuestionUid: q.id });
+    const sentence = example ?? sentenceFor(question.question_text, term);
+    await saveTerm({ term, definition, example: sentence, sourceQuestionUid: question.id });
   }
 
   // Timer mode: auto-submit when the per-question clock runs out.
@@ -195,11 +214,14 @@ export default function PracticeSession({
     }
   }, [mode, revealed, phase, perQuestionSeconds, perQRemaining, elapsed, submit]);
 
-  // Module mode: end the session when total time expires.
+  // Module mode: end the session when total time expires (record the current
+  // answer if one is selected, but do not reveal — review happens at the end).
   useEffect(() => {
     if (mode === "module" && phase === "run" && totalSeconds && moduleRemaining <= 0 && moduleElapsed > 0) {
-      if (!revealed) submit();
-      finish();
+      (async () => {
+        if (selected !== null && selected !== "") await recordAttempt();
+        finish();
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, phase, totalSeconds, moduleRemaining, moduleElapsed]);
@@ -256,12 +278,117 @@ export default function PracticeSession({
   async function finish() {
     await completeSession(sessionId);
     const flaggedList = questions.filter((x) => flags.has(x.id));
-    setPhase(flaggedList.length ? "flagged" : "done");
+    const kind = flaggedList.length ? "flagged" : "done";
+    setReturnPhase(kind);
+    setPhase(kind);
   }
 
   const correctCount = answers.filter((a) => a.correct).length;
   const totalTime = answers.reduce((a, r) => a + r.seconds, 0);
   const answeredCount = answers.length;
+
+  // ---- Module review: replay each question with the recorded answer shown ----
+  if (phase === "review") {
+    const rq = questions[reviewIndex];
+    const rec = answers.find((a) => a.question.id === rq.id);
+    const sel = rec?.selected ?? null;
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-slate-500">
+              Reviewing {reviewIndex + 1} of {questions.length}
+            </span>
+            <span className={`rounded border px-2 py-0.5 text-xs ${DIFFICULTY_COLORS[rq.difficulty] || ""}`}>
+              {rq.difficulty}
+            </span>
+            <span className="hidden text-xs text-slate-400 sm:inline">{rq.skill}</span>
+          </div>
+          {rec && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                rec.correct ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+              }`}
+            >
+              {rec.correct ? "✓ Correct" : "✗ Missed"}
+            </span>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <VocabCapture enabled onSave={(t) => addVocab(rq, t)}>
+            {rq.graph_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={rq.graph_url} alt="Question graphic" className="mb-4 max-w-full rounded-lg border border-slate-200" />
+            )}
+            <QuestionText text={rq.question_text} className="text-[15px] leading-relaxed text-slate-800" />
+            <div className="mt-5 space-y-2">
+              {rq.choices ? (
+                rq.choices.map((c) => {
+                  const isCorrect = c.letter === rq.correct_answer;
+                  const isChosen = c.letter === sel;
+                  let cls = "border-slate-200 opacity-70";
+                  if (isCorrect) cls = "border-emerald-400 bg-emerald-50";
+                  else if (isChosen) cls = "border-rose-400 bg-rose-50";
+                  return (
+                    <div key={c.letter} className={`flex items-start gap-3 rounded-lg border p-3 text-sm select-text ${cls}`}>
+                      <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full border border-current text-xs font-semibold">
+                        {c.letter}
+                      </span>
+                      <span className="select-text text-slate-700">{c.text}</span>
+                      {isCorrect && <span className="ml-auto text-emerald-600">✓</span>}
+                      {isChosen && !isCorrect && <span className="ml-auto text-rose-600">✗</span>}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="space-y-1 text-sm">
+                  <p>
+                    Your answer:{" "}
+                    <span className={`font-semibold ${rec?.correct ? "text-emerald-700" : "text-rose-700"}`}>{sel || "—"}</span>
+                  </p>
+                  <p>
+                    Correct answer: <span className="font-semibold text-emerald-700">{rq.correct_answer}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </VocabCapture>
+          {rq.rationale && (
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Explanation</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{rq.rationale}</p>
+            </div>
+          )}
+          <p className="mt-3 text-xs text-slate-400">
+            Tip: highlight any word or phrase to save it to your vocabulary.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <button onClick={() => setPhase(returnPhase)} className="text-sm text-slate-500 hover:text-slate-700">
+            ← Back to summary
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setReviewIndex((i) => Math.max(0, i - 1))}
+              disabled={reviewIndex === 0}
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            >
+              ← Prev
+            </button>
+            <button
+              onClick={() => setReviewIndex((i) => Math.min(questions.length - 1, i + 1))}
+              disabled={reviewIndex === questions.length - 1}
+              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ---- Summary / flagged review ----
   if (phase !== "run") {
@@ -277,6 +404,23 @@ export default function PracticeSession({
             {answeredCount ? Math.round(totalTime / answeredCount) : 0}s avg
           </p>
         </div>
+
+        {mode === "module" && answeredCount > 0 && (
+          <div className="text-center">
+            <button
+              onClick={() => {
+                setReviewIndex(0);
+                setPhase("review");
+              }}
+              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              🔁 Review my answers
+            </button>
+            <p className="mt-1 text-xs text-slate-400">
+              Go through every question with your answers, the correct answers, and explanations — and save vocabulary.
+            </p>
+          </div>
+        )}
 
         {phase === "flagged" && flaggedList.length > 0 && (
           <div className="rounded-xl border border-amber-200 bg-white p-5">
@@ -418,7 +562,7 @@ export default function PracticeSession({
             </button>
           </div>
         ) : (
-          <VocabCapture enabled={revealed} onSave={saveVocab}>
+          <VocabCapture enabled={revealed} onSave={(t) => addVocab(q, t)}>
         {q.graph_url && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -427,7 +571,7 @@ export default function PracticeSession({
             className="mb-4 max-w-full rounded-lg border border-slate-200"
           />
         )}
-        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-slate-800">{q.question_text}</p>
+        <QuestionText text={q.question_text} className="text-[15px] leading-relaxed text-slate-800" />
 
         <div className="mt-5 space-y-2">
           {q.choices ? (
@@ -525,7 +669,15 @@ export default function PracticeSession({
                 {isLast ? "Finish" : "Next question →"}
               </button>
             </div>
-          ) : paused ? null : (
+          ) : paused ? null : mode === "module" ? (
+            <button
+              onClick={moduleAdvance}
+              disabled={selected === null || selected === ""}
+              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {isLast ? "Finish module" : "Next question →"}
+            </button>
+          ) : (
             <button
               onClick={submit}
               disabled={selected === null || selected === ""}

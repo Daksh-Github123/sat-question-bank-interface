@@ -114,6 +114,10 @@ export async function buildSessionQuestions(
 ): Promise<Question[]> {
   let query = supabase.from("questions").select("*").in("difficulty", config.difficulties);
   if (config.skills.length > 0) query = query.in("skill", config.skills);
+  // Exclude questions that depend on a graphic we don't have yet (a graph is
+  // required but no image is attached) so practice never surfaces an
+  // unanswerable question. They reappear automatically once an image is added.
+  query = query.or("needs_graphic.eq.false,graph_url.not.is.null");
   const { data } = await query.limit(5000);
   let candidates = (data as Question[]) || [];
   if (candidates.length === 0) return [];
