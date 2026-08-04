@@ -1,8 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { currentUserId } from "@/lib/user";
+
+interface SessionOpt {
+  id: string;
+  created_at: string;
+  mode: string;
+  current_index: number;
+}
+
+const MODE_LABEL: Record<string, string> = {
+  stopwatch: "Stopwatch",
+  timer: "Per-question timer",
+  module: "Timed module",
+};
+
+function sessionLabel(s: SessionOpt): string {
+  const when = new Date(s.created_at).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${when} · ${MODE_LABEL[s.mode] || s.mode} · ${s.current_index} Q`;
+}
 
 interface QuestionMeta {
   question_id: string;
@@ -52,26 +75,60 @@ export default function ReportsPage() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [scope, setScope] = useState<"range" | "session">("range");
+  const [sessions, setSessions] = useState<SessionOpt[]>([]);
+  const [sessionId, setSessionId] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("practice_sessions")
+        .select("id, created_at, mode, current_index")
+        .eq("user_id", currentUserId())
+        .order("created_at", { ascending: false })
+        .limit(500);
+      const opts = ((data as SessionOpt[]) || []).filter((s) => s.current_index > 0);
+      setSessions(opts);
+      if (opts.length) setSessionId(opts[0].id);
+    })();
+  }, []);
 
   async function generate() {
     setBusy(true);
     setReport("");
     setCopied(false);
     const uid = currentUserId();
-    const startTs = new Date(start + "T00:00:00").toISOString();
-    const endTs = new Date(end + "T23:59:59").toISOString();
-    const { data } = await supabase
+    let query = supabase
       .from("attempts")
       .select("question_uid, is_correct, selected_answer, time_spent_seconds, confidence, miss_reason, created_at, question:questions(question_id, skill, difficulty, correct_answer, question_text, choices, rationale)")
       .eq("user_id", uid)
-      .gte("created_at", startTs)
-      .lte("created_at", endTs)
       .order("created_at", { ascending: true })
       .limit(20000);
+
+    let headerLine: string;
+    let emptyMsg: string;
+    if (scope === "session") {
+      if (!sessionId) {
+        setReport("Pick a session to report on.");
+        setBusy(false);
+        return;
+      }
+      query = query.eq("session_id", sessionId);
+      const s = sessions.find((x) => x.id === sessionId);
+      headerLine = `Session: ${s ? sessionLabel(s) : sessionId}`;
+      emptyMsg = "No attempts recorded for that session.";
+    } else {
+      const startTs = new Date(start + "T00:00:00").toISOString();
+      const endTs = new Date(end + "T23:59:59").toISOString();
+      query = query.gte("created_at", startTs).lte("created_at", endTs);
+      headerLine = `Period: ${start} to ${end}`;
+      emptyMsg = `No practice recorded between ${start} and ${end}.`;
+    }
+    const { data } = await query;
     const rows = ((data as unknown as AttemptRow[]) || []).filter((r) => r.question);
 
     if (rows.length === 0) {
-      setReport(`No practice recorded between ${start} and ${end}.`);
+      setReport(emptyMsg);
       setBusy(false);
       return;
     }
@@ -134,7 +191,7 @@ export default function ReportsPage() {
 
     const lines: string[] = [];
     lines.push(`SAT PRACTICE REPORT`);
-    lines.push(`Period: ${start} to ${end}`);
+    lines.push(headerLine);
     lines.push(``);
     lines.push(`OVERALL`);
     lines.push(`- Questions attempted: ${total}`);
@@ -235,18 +292,54 @@ export default function ReportsPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-slate-800">Progress report</h2>
         <p className="mb-3 text-sm text-slate-500">
-          Pick a date range to produce a clean summary you can copy out and hand off for logging or analysis.
+          Produce a clean summary you can copy out — for a date range or a single practice session.
         </p>
+        <div className="mb-3 inline-flex rounded-md border border-slate-200 p-0.5 text-sm">
+          {(["range", "session"] as const).map((sc) => (
+            <button
+              key={sc}
+              onClick={() => setScope(sc)}
+              className={`rounded px-3 py-1 font-medium ${
+                scope === sc ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {sc === "range" ? "Date range" : "By session"}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">From</span>
-            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
-          </label>
-          <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">To</span>
-            <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
-          </label>
-          <button onClick={generate} disabled={busy} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+          {scope === "range" ? (
+            <>
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-600">From</span>
+                <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-600">To</span>
+                <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
+              </label>
+            </>
+          ) : (
+            <label className="text-sm">
+              <span className="mb-1 block font-medium text-slate-600">Session</span>
+              {sessions.length === 0 ? (
+                <span className="block rounded-md border border-slate-200 px-3 py-2 text-slate-400">No sessions yet</span>
+              ) : (
+                <select
+                  value={sessionId}
+                  onChange={(e) => setSessionId(e.target.value)}
+                  className="min-w-[16rem] rounded-md border border-slate-300 px-3 py-2"
+                >
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {sessionLabel(s)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </label>
+          )}
+          <button onClick={generate} disabled={busy || (scope === "session" && !sessionId)} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             {busy ? "Generating…" : "Generate report"}
           </button>
         </div>

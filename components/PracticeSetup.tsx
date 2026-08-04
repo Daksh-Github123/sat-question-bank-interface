@@ -32,7 +32,7 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
   const [order, setOrder] = useState<"random" | "sequential">("random");
   const [mix, setMix] = useState<"balanced" | "test-like">("balanced");
   const [focus, setFocus] = useState<"even" | "weak">("even");
-  const [includeReview, setIncludeReview] = useState(true);
+  const [includeReview, setIncludeReview] = useState(false);
   const [avoidSeen, setAvoidSeen] = useState(true);
   const [requireTags, setRequireTags] = useState(true);
   const [attemptedIds, setAttemptedIds] = useState<Set<string>>(new Set());
