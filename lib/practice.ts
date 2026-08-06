@@ -231,6 +231,31 @@ export async function completeSession(id: string) {
     .eq("id", id);
 }
 
+/**
+ * "End" an unfinished session: keep the attempts already recorded (so those
+ * questions stay in your stats) and mark the session complete so it stops being
+ * resumable. The questions that were never answered simply have no attempts, so
+ * they remain available for future sessions automatically.
+ */
+export async function endSession(id: string) {
+  await supabase
+    .from("practice_sessions")
+    .update({ status: "completed", updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", currentUserId());
+}
+
+/**
+ * Delete a session and every attempt recorded during it. This removes those
+ * questions from the dashboard statistics and, because they no longer have any
+ * attempts, they become "new" again — eligible to appear in future sessions.
+ */
+export async function deleteSession(id: string) {
+  const uid = currentUserId();
+  await supabase.from("attempts").delete().eq("session_id", id).eq("user_id", uid);
+  await supabase.from("practice_sessions").delete().eq("id", id).eq("user_id", uid);
+}
+
 export async function getActiveSession(): Promise<PracticeSessionRow | null> {
   const { data } = await supabase
     .from("practice_sessions")
