@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { currentUserId } from "@/lib/user";
 import { useUser } from "@/lib/userContext";
+import { deleteSession, endSession } from "@/lib/practice";
 import type { PracticeSessionRow } from "@/lib/types";
 
 interface AttemptAgg {
@@ -44,28 +45,56 @@ export default function MorePage() {
   const [sessions, setSessions] = useState<PracticeSessionRow[]>([]);
   const [attempts, setAttempts] = useState<AttemptAgg[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function load() {
+    const uid = currentUserId();
+    const [s, a] = await Promise.all([
+      supabase
+        .from("practice_sessions")
+        .select("*")
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("attempts")
+        .select("session_id, is_correct, time_spent_seconds")
+        .eq("user_id", uid)
+        .limit(50000),
+    ]);
+    setSessions((s.data as PracticeSessionRow[]) || []);
+    setAttempts((a.data as AttemptAgg[]) || []);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    (async () => {
-      const uid = currentUserId();
-      const [s, a] = await Promise.all([
-        supabase
-          .from("practice_sessions")
-          .select("*")
-          .eq("user_id", uid)
-          .order("created_at", { ascending: false })
-          .limit(500),
-        supabase
-          .from("attempts")
-          .select("session_id, is_correct, time_spent_seconds")
-          .eq("user_id", uid)
-          .limit(50000),
-      ]);
-      setSessions((s.data as PracticeSessionRow[]) || []);
-      setAttempts((a.data as AttemptAgg[]) || []);
-      setLoading(false);
-    })();
+    load();
   }, []);
+
+  async function handleDelete(s: PracticeSessionRow, answered: number) {
+    const incomplete = s.status !== "completed";
+    const msg = incomplete
+      ? `Delete this session? The ${answered} question${answered === 1 ? "" : "s"} you answered will be erased from your stats and become available again as new questions.`
+      : `Delete this session? Its ${answered} question${answered === 1 ? "" : "s"} will be removed from your stats and become available again as new questions.`;
+    if (!window.confirm(msg)) return;
+    setBusyId(s.id);
+    await deleteSession(s.id);
+    await load();
+    setBusyId(null);
+  }
+
+  async function handleEnd(s: PracticeSessionRow, answered: number) {
+    if (
+      !window.confirm(
+        `End this session? The ${answered} question${answered === 1 ? "" : "s"} you already answered will be kept in your stats; the rest go back to being new questions for future sessions.`
+      )
+    )
+      return;
+    setBusyId(s.id);
+    await endSession(s.id);
+    await load();
+    setBusyId(null);
+  }
 
   const history = useMemo(() => {
     const bySession = new Map<string, { total: number; correct: number; seconds: number }>();
@@ -123,27 +152,49 @@ export default function MorePage() {
             {history.map(({ session: s, agg }) => {
               const acc = agg!.total ? Math.round((agg!.correct / agg!.total) * 100) : 0;
               const accColor = acc >= 85 ? "text-emerald-700" : acc >= 70 ? "text-amber-700" : "text-rose-700";
+              const incomplete = s.status !== "completed";
+              const busy = busyId === s.id;
               return (
                 <div
                   key={s.id}
-                  className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3"
+                  className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-slate-700">{fmtDate(s.created_at)}</span>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                       {MODE_LABEL[s.mode] || s.mode}
                     </span>
-                    {s.status !== "completed" &&
+                    {incomplete &&
                       Date.now() - new Date(s.updated_at).getTime() < RESUMABLE_MS && (
                         <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">in progress</span>
                       )}
                   </div>
-                  <div className="flex items-center gap-5 text-sm">
+                  <div className="flex items-center gap-4 text-sm">
                     <span className="text-slate-500">
                       {agg!.correct}/{agg!.total} correct
                     </span>
                     <span className={`font-semibold ${accColor}`}>{acc}%</span>
                     <span className="text-slate-400">{fmtTime(agg!.seconds)}</span>
+                    <div className="flex items-center gap-1.5">
+                      {incomplete && (
+                        <button
+                          onClick={() => handleEnd(s, agg!.total)}
+                          disabled={busy}
+                          title="Keep answered questions, free the rest for future sessions"
+                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          End
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(s, agg!.total)}
+                        disabled={busy}
+                        title="Delete this session and free its questions to be practiced again"
+                        className="rounded-md border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        {busy ? "…" : "Delete"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
