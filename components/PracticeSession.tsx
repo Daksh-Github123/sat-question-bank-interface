@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { Question, PracticeMode, Confidence, MissReason } from "@/lib/types";
 import { MISS_REASON_LABELS } from "@/lib/types";
 import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
-import { updateSessionProgress, completeSession } from "@/lib/practice";
+import { updateSessionProgress, completeSession, saveSessionActive } from "@/lib/practice";
 import { getQuestionStates, setFlag as persistFlag, setNote as persistNote } from "@/lib/questionState";
 import { currentUserId } from "@/lib/user";
 import { isAnswerCorrect } from "@/lib/answerCheck";
@@ -22,9 +22,12 @@ interface Props {
   sessionId: string;
   startIndex?: number;
   startElapsed?: number;
+  startActiveSeconds?: number;
   requireTags?: boolean;
   onExit: () => void;
 }
+
+const HIDE_SESSION_TIMER_KEY = "sat_hide_session_timer";
 
 interface Recorded {
   question: Question;
@@ -47,6 +50,7 @@ export default function PracticeSession({
   sessionId,
   startIndex = 0,
   startElapsed = 0,
+  startActiveSeconds = 0,
   requireTags = false,
   onExit,
 }: Props) {
@@ -78,6 +82,28 @@ export default function PracticeSession({
   // Pause: freezes all clocks; paused time is excluded from recorded time.
   const [paused, setPaused] = useState(false);
   const pauseStartRef = useRef<number>(0);
+
+  // Whole-session clock: total time the session is actively running (unlike the
+  // per-question clock, it keeps counting while you review/correct answers). Only
+  // paused breaks are excluded. It can be hidden, and its display is deliberately
+  // separate from the per-question / module timer.
+  const sessionBaseRef = useRef<number>(Date.now() - startActiveSeconds * 1000);
+  const [sessionSeconds, setSessionSeconds] = useState(startActiveSeconds);
+  const [hideSessionTimer, setHideSessionTimer] = useState(false);
+  useEffect(() => {
+    setHideSessionTimer(localStorage.getItem(HIDE_SESSION_TIMER_KEY) === "1");
+  }, []);
+  function toggleHideSessionTimer(hide: boolean) {
+    setHideSessionTimer(hide);
+    localStorage.setItem(HIDE_SESSION_TIMER_KEY, hide ? "1" : "0");
+  }
+  // Current session seconds (live unless paused, in which case it's frozen).
+  const currentActive = () =>
+    paused ? sessionSeconds : Math.floor((Date.now() - sessionBaseRef.current) / 1000);
+  const persistActive = useCallback(() => {
+    saveSessionActive(sessionId, paused ? sessionSeconds : Math.floor((Date.now() - sessionBaseRef.current) / 1000));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, paused, sessionSeconds]);
 
   const q = questions[index];
   const isLast = index === questions.length - 1;
@@ -141,6 +167,23 @@ export default function PracticeSession({
     }, 5000);
     return () => clearInterval(t);
   }, [revealed, paused, index, phase, sessionId]);
+
+  // Whole-session clock: tick while the session is actively running (answering OR
+  // reviewing), pausing only on an explicit break. Persist it periodically so the
+  // total survives a resume.
+  useEffect(() => {
+    if (paused || (phase !== "run" && phase !== "review")) return;
+    const tick = setInterval(() => {
+      setSessionSeconds(Math.floor((Date.now() - sessionBaseRef.current) / 1000));
+    }, 500);
+    const save = setInterval(() => {
+      saveSessionActive(sessionId, Math.floor((Date.now() - sessionBaseRef.current) / 1000));
+    }, 10000);
+    return () => {
+      clearInterval(tick);
+      clearInterval(save);
+    };
+  }, [paused, phase, sessionId]);
 
   const perQRemaining =
     mode === "timer" && perQuestionSeconds ? Math.max(0, perQuestionSeconds - elapsed) : 0;
@@ -241,11 +284,13 @@ export default function PracticeSession({
 
   function resumeClock() {
     if (!paused) return;
-    // Shift both baselines forward by the paused duration so that duration is
-    // never counted toward time_spent (keeps average time per question exact).
+    // Shift all baselines forward by the paused duration so that duration is
+    // never counted toward time_spent (keeps average time per question exact) or
+    // toward the whole-session clock.
     const delta = Date.now() - pauseStartRef.current;
     startRef.current += delta;
     moduleStartRef.current += delta;
+    sessionBaseRef.current += delta;
     setPaused(false);
   }
 
@@ -276,12 +321,49 @@ export default function PracticeSession({
   }
 
   async function finish() {
+    await saveSessionActive(sessionId, currentActive());
     await completeSession(sessionId);
     const flaggedList = questions.filter((x) => flags.has(x.id));
     const kind = flaggedList.length ? "flagged" : "done";
     setReturnPhase(kind);
     setPhase(kind);
   }
+
+  // Save the whole-session time before leaving so it isn't lost on exit.
+  function handleExit() {
+    persistActive();
+    onExit();
+  }
+
+  // A small, hideable readout of the whole-session clock, kept visually separate
+  // from the per-question / module timer.
+  const sessionTimerBar = (
+    <div>
+      <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
+        <span>⏱ Session total</span>
+        {hideSessionTimer ? (
+          <button
+            onClick={() => toggleHideSessionTimer(false)}
+            className="font-medium text-slate-400 hover:text-slate-600"
+          >
+            show
+          </button>
+        ) : (
+          <>
+            <span className="font-mono text-sm font-semibold text-slate-700">{fmt(sessionSeconds)}</span>
+            <button
+              onClick={() => toggleHideSessionTimer(true)}
+              title="Hide the session timer"
+              aria-label="Hide the session timer"
+              className="text-slate-400 hover:text-slate-600"
+            >
+              🙈
+            </button>
+          </>
+        )}
+      </span>
+    </div>
+  );
 
   const correctCount = answers.filter((a) => a.correct).length;
   const totalTime = answers.reduce((a, r) => a + r.seconds, 0);
@@ -294,6 +376,7 @@ export default function PracticeSession({
     const sel = rec?.selected ?? null;
     return (
       <div className="space-y-5">
+        {sessionTimerBar}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-slate-500">
@@ -461,7 +544,7 @@ export default function PracticeSession({
           <a href="/review" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Review mistakes
           </a>
-          <button onClick={onExit} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+          <button onClick={handleExit} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
             Done
           </button>
         </div>
@@ -491,6 +574,7 @@ export default function PracticeSession({
 
   return (
     <div className="space-y-5">
+      {sessionTimerBar}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -651,7 +735,7 @@ export default function PracticeSession({
         )}
 
         <div className="mt-5 flex items-center justify-between">
-          <button onClick={onExit} className="text-sm text-slate-400 hover:text-slate-600">
+          <button onClick={handleExit} className="text-sm text-slate-400 hover:text-slate-600">
             Save &amp; exit
           </button>
           {revealed ? (

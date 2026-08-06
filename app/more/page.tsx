@@ -174,8 +174,21 @@ export default function MorePage() {
                       {agg!.correct}/{agg!.total} correct
                     </span>
                     <span className={`font-semibold ${accColor}`}>{acc}%</span>
-                    <span className="text-slate-400">{fmtTime(agg!.seconds)}</span>
+                    <span
+                      className="text-slate-400"
+                      title={s.active_seconds > 0 ? "Total session time (includes reviewing answers)" : "Time spent answering"}
+                    >
+                      {fmtTime(s.active_seconds > 0 ? s.active_seconds : agg!.seconds)}
+                    </span>
                     <div className="flex items-center gap-1.5">
+                      {incomplete && s.current_index < s.question_ids.length && (
+                        <Link
+                          href={`/practice?resume=${s.id}`}
+                          className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700"
+                        >
+                          Resume
+                        </Link>
+                      )}
                       {incomplete && (
                         <button
                           onClick={() => handleEnd(s, agg!.total)}

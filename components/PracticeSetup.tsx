@@ -112,6 +112,10 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
 
   const canStart = matchingCount > 0 && difficulties.size > 0;
   const effectiveCount = Math.min(count, matchingCount);
+  const [needMore, setNeedMore] = useState(false);
+  // Show the "not enough questions" suggestion only while the ask genuinely
+  // exceeds what's available (auto-dismisses if filters/quantity change).
+  const showNeedMore = needMore && count > matchingCount && matchingCount > 0;
 
   if (loading) return <p className="text-sm text-slate-500">Loading your question bank…</p>;
 
@@ -127,7 +131,7 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
     );
   }
 
-  function start() {
+  function launch() {
     const config: PracticeSessionConfig = {
       skills: Array.from(selectedSkills),
       difficulties: Array.from(difficulties),
@@ -145,6 +149,16 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       perQuestionSeconds: mode === "timer" ? seconds : null,
       totalSeconds: mode === "module" ? moduleMinutes * 60 : null,
     });
+  }
+
+  function handleStart() {
+    // If the requested quantity exceeds what's available for these filters,
+    // don't silently shrink it — surface a suggestion to use all available.
+    if (count > matchingCount) {
+      setNeedMore(true);
+      return;
+    }
+    launch();
   }
 
   return (
@@ -376,13 +390,43 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
         </div>
       </section>
 
+      {showNeedMore && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
+          <p className="font-medium text-amber-800">
+            Only {matchingCount} question{matchingCount === 1 ? "" : "s"} match these filters, but you asked
+            for {count}.
+          </p>
+          <p className="mt-0.5 text-amber-700">
+            Start with all {matchingCount} available, or adjust your filters / quantity for more.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => {
+                setNeedMore(false);
+                setCount(matchingCount);
+                launch();
+              }}
+              className="rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+            >
+              Start with all {matchingCount}
+            </button>
+            <button
+              onClick={() => setNeedMore(false)}
+              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Keep editing
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">
           {matchingCount} match — starting <strong>{effectiveCount}</strong>.
         </p>
         <button
           disabled={!canStart}
-          onClick={start}
+          onClick={handleStart}
           className="rounded-md bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           Start practice
