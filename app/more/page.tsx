@@ -14,11 +14,6 @@ interface AttemptAgg {
   time_spent_seconds: number;
 }
 
-// A session is only genuinely resumable (and worth flagging "in progress") while
-// it is unfinished AND recent — matching the Practice page's resume window. Older
-// abandoned sessions just show as normal past entries.
-const RESUMABLE_MS = 24 * 60 * 60 * 1000;
-
 const MODE_LABEL: Record<string, string> = {
   stopwatch: "Stopwatch",
   timer: "Per-question timer",
@@ -154,60 +149,66 @@ export default function MorePage() {
               const accColor = acc >= 85 ? "text-emerald-700" : acc >= 70 ? "text-amber-700" : "text-rose-700";
               const incomplete = s.status !== "completed";
               const busy = busyId === s.id;
+              const total = s.question_ids.length;
+              const answered = agg!.total;
+              const remaining = Math.max(0, total - answered);
+              const canResume = incomplete && s.current_index < total;
+              const duration = s.active_seconds > 0 ? s.active_seconds : agg!.seconds;
               return (
                 <div
                   key={s.id}
                   className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-slate-700">{fmtDate(s.created_at)}</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                      {MODE_LABEL[s.mode] || s.mode}
-                    </span>
-                    {incomplete &&
-                      Date.now() - new Date(s.updated_at).getTime() < RESUMABLE_MS && (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">in progress</span>
-                      )}
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="text-slate-500">
-                      {agg!.correct}/{agg!.total} correct
-                    </span>
-                    <span className={`font-semibold ${accColor}`}>{acc}%</span>
-                    <span
-                      className="text-slate-400"
-                      title={s.active_seconds > 0 ? "Total session time (includes reviewing answers)" : "Time spent answering"}
-                    >
-                      {fmtTime(s.active_seconds > 0 ? s.active_seconds : agg!.seconds)}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      {incomplete && s.current_index < s.question_ids.length && (
-                        <Link
-                          href={`/practice?resume=${s.id}`}
-                          className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700"
-                        >
-                          Resume
-                        </Link>
-                      )}
-                      {incomplete && (
-                        <button
-                          onClick={() => handleEnd(s, agg!.total)}
-                          disabled={busy}
-                          title="Keep answered questions, free the rest for future sessions"
-                          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          End
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(s, agg!.total)}
-                        disabled={busy}
-                        title="Delete this session and free its questions to be practiced again"
-                        className="rounded-md border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
-                      >
-                        {busy ? "…" : "Delete"}
-                      </button>
+                  {/* Left: date + mode, with a single muted detail line */}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-700">{fmtDate(s.created_at)}</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                        {MODE_LABEL[s.mode] || s.mode}
+                      </span>
                     </div>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {incomplete ? (
+                        <span className="font-medium text-amber-600">
+                          {answered} of {total} done · {remaining} left
+                        </span>
+                      ) : (
+                        <>{agg!.correct}/{answered} correct</>
+                      )}
+                      <span className="text-slate-300"> · </span>
+                      {fmtTime(duration)}
+                    </p>
+                  </div>
+
+                  {/* Right: headline accuracy + actions */}
+                  <div className="flex items-center gap-3">
+                    <span className={`text-base font-semibold ${accColor}`}>{acc}%</span>
+                    {canResume && (
+                      <Link
+                        href={`/practice?resume=${s.id}`}
+                        className="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700"
+                      >
+                        Resume
+                      </Link>
+                    )}
+                    {incomplete && (
+                      <button
+                        onClick={() => handleEnd(s, answered)}
+                        disabled={busy}
+                        title="Keep answered questions, free the rest for future sessions"
+                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        End
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(s, answered)}
+                      disabled={busy}
+                      title="Delete this session and free its questions to be practiced again"
+                      className="rounded-md border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                    >
+                      {busy ? "…" : "Delete"}
+                    </button>
                   </div>
                 </div>
               );
