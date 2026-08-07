@@ -8,6 +8,7 @@ import {
   buildSessionQuestions,
   createSession,
   getActiveSession,
+  getSessionById,
   loadSessionQuestions,
   completeSession,
 } from "@/lib/practice";
@@ -20,6 +21,7 @@ interface ActiveSession {
   sessionId: string;
   startIndex: number;
   startElapsed: number;
+  startActiveSeconds: number;
   requireTags: boolean;
 }
 
@@ -41,10 +43,21 @@ export default function PracticePage() {
 
   useEffect(() => {
     (async () => {
+      // Resume a specific session when launched from the history page
+      // (/practice?resume=<id>) — allowed for any unfinished session.
+      const resumeId = new URLSearchParams(window.location.search).get("resume");
+      if (resumeId) {
+        const row = await getSessionById(resumeId);
+        if (row && row.status !== "completed" && row.current_index < row.question_ids.length) {
+          await resume(row);
+          return;
+        }
+      }
       const active = await getActiveSession();
       if (isResumable(active)) setResumable(active);
       setPhase("setup");
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function start(payload: StartPayload) {
@@ -78,6 +91,7 @@ export default function PracticePage() {
         sessionId: id,
         startIndex: 0,
         startElapsed: 0,
+        startActiveSeconds: 0,
         requireTags: payload.config.requireTags,
       });
       setPhase("active");
@@ -98,6 +112,7 @@ export default function PracticePage() {
       sessionId: row.id,
       startIndex: Math.min(row.current_index, questions.length - 1),
       startElapsed: row.current_elapsed_seconds || 0,
+      startActiveSeconds: row.active_seconds || 0,
       requireTags: (row.config as any)?.requireTags ?? false,
     });
     setPhase("active");
@@ -121,6 +136,7 @@ export default function PracticePage() {
         sessionId={session.sessionId}
         startIndex={session.startIndex}
         startElapsed={session.startElapsed}
+        startActiveSeconds={session.startActiveSeconds}
         requireTags={session.requireTags}
         onExit={() => {
           setSession(null);

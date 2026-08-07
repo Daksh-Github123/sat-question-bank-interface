@@ -98,6 +98,7 @@ export interface PracticeSessionRow {
   total_seconds: number | null;
   current_index: number;
   current_elapsed_seconds: number;
+  active_seconds: number; // total wall-clock time the session was actively running
   status: "active" | "completed";
   created_at: string;
   updated_at: string;

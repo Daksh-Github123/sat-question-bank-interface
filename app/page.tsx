@@ -13,6 +13,7 @@ interface AttemptRow {
   is_correct: boolean;
   time_spent_seconds: number;
   created_at: string;
+  session_id: string | null;
   question: { test: string; domain: string; skill: string } | null;
 }
 
@@ -65,6 +66,7 @@ interface SkillStat {
 export default function DashboardPage() {
   const [attempts, setAttempts] = useState<AttemptRow[]>([]);
   const [bank, setBank] = useState<BankRow[]>([]);
+  const [sessionTimes, setSessionTimes] = useState<{ id: string; active_seconds: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<string>("All");
   const [sort, setSort] = useState<"attention" | "accuracy" | "coverage" | "az">("attention");
@@ -77,11 +79,19 @@ export default function DashboardPage() {
       // attempts (this user) ascending for trend halves
       const { data: att } = await supabase
         .from("attempts")
-        .select("question_uid, is_correct, time_spent_seconds, created_at, question:questions(test, domain, skill)")
+        .select("question_uid, is_correct, time_spent_seconds, created_at, session_id, question:questions(test, domain, skill)")
         .eq("user_id", uid)
         .order("created_at", { ascending: true })
         .limit(50000);
       if (!cancelled) setAttempts((att as unknown as AttemptRow[]) || []);
+
+      // Session-level active time (includes reviewing answers) for a truer total.
+      const { data: sess } = await supabase
+        .from("practice_sessions")
+        .select("id, active_seconds")
+        .eq("user_id", uid)
+        .limit(5000);
+      if (!cancelled) setSessionTimes((sess as { id: string; active_seconds: number }[]) || []);
 
       // bank meta (shared) — paged
       const rows: BankRow[] = [];
@@ -118,6 +128,22 @@ export default function DashboardPage() {
 
   // ---- derived ----
   const { tiles, questionBars, minuteBars, skillStats, presentTests } = useMemo(() => {
+    // Total time practiced: per session, take the wall-clock active time (which
+    // includes reviewing answers) when we have it, otherwise fall back to the sum
+    // of that session's per-question time. Attempts with no session count directly.
+    const activeBySession = new Map(sessionTimes.map((s) => [s.id, s.active_seconds || 0]));
+    const qSecondsBySession = new Map<string, number>();
+    let sessionlessSeconds = 0;
+    for (const a of attempts) {
+      if (a.session_id) qSecondsBySession.set(a.session_id, (qSecondsBySession.get(a.session_id) || 0) + a.time_spent_seconds);
+      else sessionlessSeconds += a.time_spent_seconds;
+    }
+    let totalPracticeSeconds = sessionlessSeconds;
+    const sessionIds = new Set<string>([...activeBySession.keys(), ...qSecondsBySession.keys()]);
+    for (const id of sessionIds) {
+      totalPracticeSeconds += Math.max(activeBySession.get(id) || 0, qSecondsBySession.get(id) || 0);
+    }
+
     // Bank availability + skill -> test/domain
     const bankBySkill = new Map<string, { test: string; domain: string; total: number }>();
     for (const b of bank) {
@@ -168,11 +194,9 @@ export default function DashboardPage() {
 
     let overallCorrect = 0;
     let weekCount = 0;
-    let totalSeconds = 0;
     const distinctAllQ = new Set<string>();
 
     for (const a of attempts) {
-      totalSeconds += a.time_spent_seconds;
       if (a.is_correct) overallCorrect++;
       const t = new Date(a.created_at).getTime();
       if (t >= recentCut) weekCount++;
@@ -228,12 +252,12 @@ export default function DashboardPage() {
       overallCorrect,
       covered: distinctAllQ.size,
       bankTotal,
-      totalSeconds,
+      totalSeconds: totalPracticeSeconds,
       weekCount,
     };
 
     return { tiles, questionBars, minuteBars, skillStats, presentTests };
-  }, [attempts, bank]);
+  }, [attempts, bank, sessionTimes]);
 
   const acc = (t: number, c: number) => (t ? Math.round((c / t) * 100) : 0);
 
@@ -278,7 +302,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatTile label="Overall accuracy" value={`${tiles.accuracy}%`} sub={`${tiles.overallCorrect}/${tiles.totalAttempts} answered`} />
         <StatTile label="Coverage" value={`${tiles.covered}/${tiles.bankTotal}`} sub="questions practiced" />
-        <StatTile label="Total time" value={fmtTime(tiles.totalSeconds)} sub="across all sessions" />
+        <StatTile label="Total time" value={fmtTime(tiles.totalSeconds)} sub="practicing (incl. review)" />
         <StatTile label="Last 7 days" value={`${tiles.weekCount}`} sub="questions answered" />
       </div>
 

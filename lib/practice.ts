@@ -224,6 +224,29 @@ export async function updateSessionProgress(
     .eq("id", id);
 }
 
+/**
+ * Persist the session's total active time (wall clock while running, excluding
+ * paused breaks). Kept separate from per-question time so it can include the time
+ * spent reviewing/correcting answers.
+ */
+export async function saveSessionActive(id: string, activeSeconds: number) {
+  await supabase
+    .from("practice_sessions")
+    .update({ active_seconds: Math.max(0, Math.round(activeSeconds)), updated_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
+/** Load a single session by id (used to resume a specific session from history). */
+export async function getSessionById(id: string): Promise<PracticeSessionRow | null> {
+  const { data } = await supabase
+    .from("practice_sessions")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", currentUserId())
+    .limit(1);
+  return (data as PracticeSessionRow[])?.[0] || null;
+}
+
 export async function completeSession(id: string) {
   await supabase
     .from("practice_sessions")
