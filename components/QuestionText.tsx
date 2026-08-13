@@ -14,6 +14,15 @@ const PROMPT_LEAD =
 const UNDERLINE_REF =
   /\bunderlined\s+(claim|conclusion|sentence|statement|assertion|prediction|hypothesis|portion|text|finding|idea|generalization|argument|point|question)\b/i;
 
+// "Function of the underlined …" (Craft & Structure) questions underline an
+// arbitrary span that could be anywhere in the passage — often not the last
+// sentence, sometimes a short phrase, sometimes several portions. We can't
+// recover that span from the flattened text, so we DON'T guess for these (a
+// wrong underline is worse than none). Only claim/conclusion-style prompts,
+// where the underlined part is the assertion right before the prompt, are safe.
+const UNDERLINE_FUNCTION =
+  /function of the underlined|\bunderlined\s+(phrase|lines|portions)\b/i;
+
 // Split prose into sentences while keeping author initials ("Doug J."), dotted
 // acronyms ("U.S."), and common abbreviations intact.
 function splitSentences(s: string): string[] {
@@ -80,7 +89,7 @@ export default function QuestionText({
     // Cross-text prompts may reference "the underlined portion of Text 1/2".
     // Re-mark that passage's assertion (its last sentence).
     let ulTarget = 0;
-    if (prompt && UNDERLINE_REF.test(prompt)) {
+    if (prompt && UNDERLINE_REF.test(prompt) && !UNDERLINE_FUNCTION.test(prompt)) {
       const um = prompt.match(/underlined[\s\S]{0,40}?\bText\s*([12])\b/i);
       ulTarget = um ? parseInt(um[1], 10) : 1;
     }
@@ -116,7 +125,7 @@ export default function QuestionText({
 
   // Single-passage questions referencing "the underlined claim/…": re-underline
   // the assertion/conclusion, which is the sentence immediately before the prompt.
-  if (UNDERLINE_REF.test(text)) {
+  if (UNDERLINE_REF.test(text) && !UNDERLINE_FUNCTION.test(text)) {
     const sents = splitSentences(text);
     const last = sents[sents.length - 1] || "";
     if (sents.length >= 2 && /\?["”]?$/.test(last) && UNDERLINE_REF.test(last)) {
