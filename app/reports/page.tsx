@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { currentUserId } from "@/lib/user";
+import { listVocab, sentenceFor } from "@/lib/vocab";
 
 interface SessionOpt {
   id: string;
@@ -259,6 +260,106 @@ export default function ReportsPage() {
     } catch {}
   }
 
+  // ---- Vocabulary report ----
+  interface VocabRow {
+    term: string;
+    definition: string;
+    times: number;
+    sentence: string; // the full sentence the word was used in (from the question)
+    sourceQuestionId: string;
+    added: string;
+  }
+  const [vocabReport, setVocabReport] = useState("");
+  const [vocabRows, setVocabRows] = useState<VocabRow[]>([]);
+  const [vocabBusy, setVocabBusy] = useState(false);
+  const [vocabCopied, setVocabCopied] = useState(false);
+
+  async function generateVocab() {
+    setVocabBusy(true);
+    setVocabReport("");
+    setVocabCopied(false);
+    const items = await listVocab();
+    if (items.length === 0) {
+      setVocabRows([]);
+      setVocabReport("No vocabulary saved yet. Highlight a word while reviewing an answer to save it.");
+      setVocabBusy(false);
+      return;
+    }
+
+    // Resolve the sentence each term appeared in, from its source question.
+    const srcIds = Array.from(new Set(items.map((v) => v.source_question_uid).filter(Boolean))) as string[];
+    const qText = new Map<string, string>();
+    const qCode = new Map<string, string>();
+    if (srcIds.length) {
+      const { data } = await supabase
+        .from("questions")
+        .select("id, question_id, question_text")
+        .in("id", srcIds)
+        .limit(20000);
+      for (const q of (data as { id: string; question_id: string; question_text: string }[]) || []) {
+        qText.set(q.id, q.question_text || "");
+        qCode.set(q.id, q.question_id);
+      }
+    }
+
+    const rows: VocabRow[] = items.map((v) => {
+      const src = v.source_question_uid || "";
+      // Prefer the actual sentence from the source question; fall back to the
+      // stored example (e.g. a dictionary example) when there's no source.
+      const sentence = sentenceFor(qText.get(src), v.term) || v.example || "";
+      return {
+        term: v.term,
+        definition: v.definition || "",
+        times: v.count || 1,
+        sentence,
+        sourceQuestionId: qCode.get(src) || "",
+        added: (v.created_at || "").slice(0, 10),
+      };
+    });
+    setVocabRows(rows);
+
+    const lines: string[] = [];
+    lines.push(`VOCABULARY REPORT`);
+    lines.push(`Saved words: ${rows.length}`);
+    lines.push(``);
+    rows.forEach((r) => {
+      lines.push(`${r.term}${r.times > 1 ? ` (saved ${r.times}×)` : ""}`);
+      if (r.definition) lines.push(`  Definition: ${r.definition}`);
+      if (r.sentence) lines.push(`  Used in: "${r.sentence}"`);
+      if (r.sourceQuestionId) lines.push(`  Source question: ${r.sourceQuestionId}`);
+      lines.push(``);
+    });
+    setVocabReport(lines.join("\n").trimEnd());
+    setVocabBusy(false);
+  }
+
+  async function copyVocab() {
+    try {
+      await navigator.clipboard.writeText(vocabReport);
+      setVocabCopied(true);
+      setTimeout(() => setVocabCopied(false), 1500);
+    } catch {}
+  }
+
+  function downloadVocabCsv() {
+    if (vocabRows.length === 0) return;
+    const cell = (s: string | number) => `"${String(s).replace(/"/g, '""')}"`;
+    const header = ["Term", "Definition", "Times saved", "Sentence in question", "Source question", "Added"];
+    const csv = [
+      header.map(cell).join(","),
+      ...vocabRows.map((r) =>
+        [r.term, r.definition, r.times, r.sentence, r.sourceQuestionId, r.added].map(cell).join(",")
+      ),
+    ].join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `sat-vocabulary-${iso(new Date())}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function downloadBackup() {
     setBackupBusy(true);
     const uid = currentUserId();
@@ -352,6 +453,41 @@ export default function ReportsPage() {
               </button>
             </div>
             <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">{report}</pre>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800">Vocabulary export</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          A report of every word you&apos;ve saved — with its definition and the full sentence it was used in
+          within the question. Copy it out or download as CSV.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={generateVocab}
+            disabled={vocabBusy}
+            className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          >
+            {vocabBusy ? "Generating…" : "Generate vocabulary report"}
+          </button>
+          {vocabRows.length > 0 && (
+            <button
+              onClick={downloadVocabCsv}
+              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Download CSV
+            </button>
+          )}
+        </div>
+        {vocabReport && (
+          <div className="mt-4">
+            <div className="mb-2 flex justify-end">
+              <button onClick={copyVocab} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                {vocabCopied ? "Copied!" : "Copy report"}
+              </button>
+            </div>
+            <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">{vocabReport}</pre>
           </div>
         )}
       </section>
