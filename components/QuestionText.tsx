@@ -7,6 +7,38 @@
 const PROMPT_LEAD =
   /(Based on (?:the|both) texts|How would the author|The author of Text|Which choice|Which statement|What would the author)/;
 
+// Questions that reference "the underlined claim/conclusion/…". The source PDF's
+// underline styling is lost during text extraction, so we re-mark the referenced
+// sentence (see below). Excludes "underlined word/phrase" (a different pattern we
+// can't recover a single span for).
+const UNDERLINE_REF =
+  /\bunderlined\s+(claim|conclusion|sentence|statement|assertion|prediction|hypothesis|portion|text|finding|idea|generalization|argument|point|question)\b/i;
+
+// Split prose into sentences while keeping author initials ("Doug J."), dotted
+// acronyms ("U.S."), and common abbreviations intact.
+function splitSentences(s: string): string[] {
+  const out: string[] = [];
+  let start = 0;
+  const re = /[.!?]["”]?(?=\s+["“(]?[A-Z]|\s*$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    const end = m.index + m[0].length;
+    const before = s.slice(0, m.index);
+    const tail = before.match(/([A-Za-z]{1,4})$/)?.[1] || "";
+    const isInitial = /(^|\s)[A-Z]$/.test(before.slice(-2));
+    const isAcronym = /[A-Za-z]\.[A-Za-z]$/.test(before.slice(-3));
+    const isAbbrev = /^(Dr|Mr|Mrs|Ms|St|vs|etc|Inc|Ltd|Jr|Sr|No|Fig|eq)$/i.test(tail);
+    if (isInitial || isAcronym || isAbbrev) continue;
+    out.push(s.slice(start, end).trim());
+    start = end;
+  }
+  if (start < s.length) {
+    const rest = s.slice(start).trim();
+    if (rest) out.push(rest);
+  }
+  return out;
+}
+
 export default function QuestionText({
   text,
   className = "",
@@ -57,6 +89,23 @@ export default function QuestionText({
         )}
       </div>
     );
+  }
+
+  // Single-passage questions referencing "the underlined claim/…": re-underline
+  // the assertion/conclusion, which is the sentence immediately before the prompt.
+  if (UNDERLINE_REF.test(text)) {
+    const sents = splitSentences(text);
+    const last = sents[sents.length - 1] || "";
+    if (sents.length >= 2 && /\?["”]?$/.test(last) && UNDERLINE_REF.test(last)) {
+      const claim = sents[sents.length - 2];
+      const head = sents.slice(0, sents.length - 2).join(" ");
+      return (
+        <p className={p}>
+          {head && <>{head} </>}
+          <span className="underline decoration-2 underline-offset-2">{claim}</span> {last}
+        </p>
+      );
+    }
   }
 
   return <p className={p}>{text}</p>;

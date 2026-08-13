@@ -107,6 +107,7 @@ export default function MorePage() {
   }, [sessions, attempts]);
 
   const cards = [
+    { href: "/leaderboard", label: "Leaderboard", desc: "See how everyone ranks by accuracy, volume, and time", emoji: "🏆", show: true },
     { href: "/browse", label: "Browse questions", desc: "Search and filter the full question bank", emoji: "📚", show: true },
     { href: "/reports", label: "Reports & backup", desc: "Progress reports and data export", emoji: "📄", show: true },
     { href: "/import", label: "Import", desc: "Add questions from PDFs", emoji: "⬆️", show: !!user?.is_admin },
