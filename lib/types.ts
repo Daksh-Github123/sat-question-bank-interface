@@ -1,6 +1,6 @@
 export type Difficulty = "Easy" | "Medium" | "Hard";
 export type Confidence = "confident" | "guessed";
-export type MissReason = "concept" | "careless" | "time" | "misread";
+export type MissReason = "concept" | "careless" | "rushed" | "time" | "misread";
 export type PracticeMode = "stopwatch" | "timer" | "module";
 
 export interface Choice {
@@ -107,6 +107,7 @@ export interface PracticeSessionRow {
 export const MISS_REASON_LABELS: Record<MissReason, string> = {
   concept: "Didn't know the concept",
   careless: "Careless mistake",
+  rushed: "Went too fast",
   time: "Ran out of time",
   misread: "Misread the question",
 };

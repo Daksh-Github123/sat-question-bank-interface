@@ -56,6 +56,7 @@ function iso(d: Date) {
 const MISS_REASON_TEXT: Record<string, string> = {
   concept: "didn't know the concept",
   careless: "careless mistake",
+  rushed: "went too fast",
   time: "ran out of time",
   misread: "misread the question",
 };

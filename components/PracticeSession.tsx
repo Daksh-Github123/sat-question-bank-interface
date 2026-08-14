@@ -10,6 +10,7 @@ import { getQuestionStates, setFlag as persistFlag, setNote as persistNote } fro
 import { currentUserId } from "@/lib/user";
 import { isAnswerCorrect } from "@/lib/answerCheck";
 import { saveTerm, sentenceFor } from "@/lib/vocab";
+import { reportQuestion } from "@/lib/reports";
 import { lookup as dictionaryLookup } from "@/lib/dictionary";
 import VocabCapture from "./VocabCapture";
 import QuestionText from "./QuestionText";
@@ -68,6 +69,10 @@ export default function PracticeSession({
   const [notes, setNotes] = useState<Map<string, string>>(new Map());
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
+  // Report-an-issue panel (per question).
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [reportSent, setReportSent] = useState(false);
   const [phase, setPhase] = useState<"run" | "flagged" | "done" | "review">("run");
   // Module review: index into the questions while replaying answers, and the
   // summary phase to return to when review is finished.
@@ -137,6 +142,9 @@ export default function PracticeSession({
     setMissReason(null);
     setNoteOpen(false);
     setNoteDraft(q ? notes.get(q.id) || "" : "");
+    setReportOpen(false);
+    setReportText("");
+    setReportSent(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
@@ -310,6 +318,17 @@ export default function PracticeSession({
     setNotes((prev) => new Map(prev).set(q.id, noteDraft));
     await persistNote(q.id, noteDraft);
     setNoteOpen(false);
+  }
+
+  async function submitReport() {
+    if (!q || !reportText.trim()) return;
+    await reportQuestion(q.id, reportText.trim());
+    setReportSent(true);
+    setReportText("");
+    setTimeout(() => {
+      setReportOpen(false);
+      setReportSent(false);
+    }, 1600);
   }
 
   function next() {
@@ -591,6 +610,16 @@ export default function PracticeSession({
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setReportOpen((v) => !v)}
+            title="Report an issue with this question"
+            aria-label="Report an issue with this question"
+            className={`rounded-md border px-2 py-1 text-sm ${
+              reportOpen ? "border-rose-300 bg-rose-50 text-rose-600" : "border-slate-300 text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            ⚠
+          </button>
+          <button
             onClick={toggleFlag}
             title="Flag to revisit"
             className={`rounded-md border px-2 py-1 text-sm ${
@@ -624,6 +653,51 @@ export default function PracticeSession({
           )}
         </div>
       </div>
+
+      {reportOpen && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3">
+          {reportSent ? (
+            <p className="text-sm font-medium text-rose-700">Thanks — your report was submitted. ✓</p>
+          ) : (
+            <>
+              <p className="mb-2 text-xs font-semibold text-rose-700">Report an issue with this question</p>
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {["Wrong answer key", "Typo or formatting", "Missing/incorrect graphic", "Confusing wording"].map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setReportText((t) => (t.trim() ? t : c))}
+                    className="rounded-full border border-rose-200 bg-white px-2.5 py-0.5 text-xs text-rose-600 hover:bg-rose-100"
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={reportText}
+                onChange={(e) => setReportText(e.target.value)}
+                placeholder="What's wrong with this question?"
+                rows={2}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <div className="mt-2 flex justify-end gap-2">
+                <button
+                  onClick={() => setReportOpen(false)}
+                  className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitReport}
+                  disabled={!reportText.trim()}
+                  className="rounded-md bg-rose-600 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                >
+                  Submit report
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
         <div className="h-full bg-brand-500 transition-all" style={{ width: `${((index + (revealed ? 1 : 0)) / questions.length) * 100}%` }} />
