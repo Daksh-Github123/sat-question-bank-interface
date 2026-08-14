@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useUser } from "@/lib/userContext";
+import { listReports, deleteReport, type QuestionReport } from "@/lib/reports";
 
 interface Row {
   id: string;
@@ -31,6 +32,8 @@ export default function AdminPage() {
   const { user } = useUser();
   const [users, setUsers] = useState<Row[]>([]);
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
+  const [reports, setReports] = useState<QuestionReport[]>([]);
+  const [reportQCode, setReportQCode] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [makeAdmin, setMakeAdmin] = useState(false);
@@ -38,9 +41,10 @@ export default function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const [{ data }, { data: att }] = await Promise.all([
+    const [{ data }, { data: att }, reps] = await Promise.all([
       supabase.from("users").select("*").order("created_at"),
       supabase.from("attempts").select("user_id").limit(100000),
+      listReports(),
     ]);
     setUsers((data as Row[]) || []);
     const c = new Map<string, number>();
@@ -48,7 +52,19 @@ export default function AdminPage() {
       if (a.user_id) c.set(a.user_id, (c.get(a.user_id) || 0) + 1);
     }
     setCounts(c);
+    setReports(reps);
+    // Resolve question codes for the reported questions.
+    const uids = Array.from(new Set(reps.map((r) => r.question_uid).filter(Boolean)));
+    if (uids.length) {
+      const { data: qs } = await supabase.from("questions").select("id, question_id").in("id", uids).limit(5000);
+      setReportQCode(new Map(((qs as { id: string; question_id: string }[]) || []).map((q) => [q.id, q.question_id])));
+    }
     setLoading(false);
+  }
+
+  async function resolveReport(id: string) {
+    await deleteReport(id);
+    load();
   }
 
   useEffect(() => {
@@ -161,6 +177,42 @@ export default function AdminPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800">
+          Reported issues {reports.length > 0 && <span className="text-rose-600">({reports.length})</span>}
+        </h2>
+        {loading ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : reports.length === 0 ? (
+          <p className="text-sm text-slate-400">No open reports. 🎉</p>
+        ) : (
+          <div className="space-y-2">
+            {reports.map((r) => {
+              const code = reportQCode.get(r.question_uid) || r.question_uid;
+              const who = users.find((u) => u.id === r.user_id)?.display_name || "someone";
+              return (
+                <div key={r.id} className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 p-3">
+                  <div className="min-w-0">
+                    <div className="mb-0.5 flex items-center gap-2 text-xs text-slate-400">
+                      <span className="font-mono">{code}</span>
+                      <span>· {who}</span>
+                      <span>· {timeAgo(r.created_at)}</span>
+                    </div>
+                    <p className="text-sm text-slate-700">{r.reason}</p>
+                  </div>
+                  <button
+                    onClick={() => resolveReport(r.id)}
+                    className="flex-none rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Resolve
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
