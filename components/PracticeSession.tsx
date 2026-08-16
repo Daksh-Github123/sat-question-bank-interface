@@ -423,7 +423,7 @@ export default function PracticeSession({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={rq.graph_url} alt="Question graphic" className="mb-4 max-w-full rounded-lg border border-slate-200" />
             )}
-            <QuestionText text={rq.question_text} className="text-[15px] leading-relaxed text-slate-800" />
+            <QuestionText text={rq.question_text} underlineSpans={rq.underline_spans} className="text-[15px] leading-relaxed text-slate-800" />
             <div className="mt-5 space-y-2">
               {rq.choices ? (
                 rq.choices.map((c) => {
@@ -729,7 +729,7 @@ export default function PracticeSession({
             className="mb-4 max-w-full rounded-lg border border-slate-200"
           />
         )}
-        <QuestionText text={q.question_text} className="text-[15px] leading-relaxed text-slate-800" />
+        <QuestionText text={q.question_text} underlineSpans={q.underline_spans} className="text-[15px] leading-relaxed text-slate-800" />
 
         <div className="mt-5 space-y-2">
           {q.choices ? (

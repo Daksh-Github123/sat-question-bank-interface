@@ -152,6 +152,37 @@ export default function ImportPage() {
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="mb-2 text-sm font-semibold text-slate-800">
+              Underlines detected in {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length} question
+              {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length === 1 ? "" : "s"}
+            </p>
+            <p className="mb-2 text-xs text-slate-400">
+              Saving these will render the exact underline in Practice, Browse, and Review.
+            </p>
+            <div className="max-h-56 space-y-1.5 overflow-auto">
+              {allParsed
+                .filter((q) => q.underline_spans && q.underline_spans.length)
+                .slice(0, 40)
+                .map((q) => (
+                  <div key={q.question_id} className="text-xs text-slate-600">
+                    <span className="font-mono text-slate-400">{q.question_id}</span>{" "}
+                    {q.underline_spans!.map((s, i) => (
+                      <span key={i}>
+                        {i > 0 && <span className="text-slate-300"> · </span>}
+                        <span className="underline decoration-slate-400">{s}</span>
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length === 0 && (
+                <p className="text-xs text-slate-400">
+                  No underlines detected in these files. (Only questions whose prompt mentions an underline are checked.)
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="mb-2 text-sm font-semibold text-slate-800">Breakdown by skill</p>
             <div className="space-y-1">
               {Array.from(bySkill.entries()).map(([key, v]) => (

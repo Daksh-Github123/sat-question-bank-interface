@@ -144,7 +144,7 @@ export default function BrowsePage() {
                       ⚠ This question relies on a graph that isn&apos;t available yet, so it&apos;s hidden from practice.
                     </p>
                   ) : null}
-                  <QuestionText text={q.question_text} className="text-slate-700" />
+                  <QuestionText text={q.question_text} underlineSpans={q.underline_spans} className="text-slate-700" />
                   {q.choices && (
                     <ul className="mt-3 space-y-1">
                       {q.choices.map((c) => (

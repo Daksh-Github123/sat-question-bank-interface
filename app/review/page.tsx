@@ -207,7 +207,7 @@ export default function ReviewPage() {
                           ⚠ This question relies on a graph that isn&apos;t available yet.
                         </p>
                       ) : null}
-                      <QuestionText text={q.question_text} className="text-sm text-slate-700" />
+                      <QuestionText text={q.question_text} underlineSpans={q.underline_spans} className="text-sm text-slate-700" />
                       {q.choices && (
                         <ul className="space-y-1 text-sm">
                           {q.choices.map((c) => (
