@@ -10,6 +10,7 @@ interface SessionOpt {
   created_at: string;
   mode: string;
   current_index: number;
+  config: { skills?: string[]; difficulties?: string[] } | null;
 }
 
 const MODE_LABEL: Record<string, string> = {
@@ -25,7 +26,18 @@ function sessionLabel(s: SessionOpt): string {
     hour: "numeric",
     minute: "2-digit",
   });
-  return `${when} · ${MODE_LABEL[s.mode] || s.mode} · ${s.current_index} Q`;
+  const cfg = s.config || {};
+  const skills =
+    cfg.skills && cfg.skills.length
+      ? cfg.skills.length <= 2
+        ? cfg.skills.join(", ")
+        : `${cfg.skills.length} skills`
+      : "All skills";
+  const diffs =
+    cfg.difficulties && cfg.difficulties.length
+      ? [...cfg.difficulties].sort().map((d) => d[0]).join("/")
+      : "—";
+  return `${when} · ${skills} · ${diffs} · ${s.current_index}Q`;
 }
 
 interface QuestionMeta {
@@ -81,11 +93,35 @@ export default function ReportsPage() {
   const [sessions, setSessions] = useState<SessionOpt[]>([]);
   const [sessionId, setSessionId] = useState("");
 
+  // Report options.
+  const [diffFilter, setDiffFilter] = useState<Set<string>>(new Set(["Easy", "Medium", "Hard"]));
+  const [inc, setInc] = useState({
+    overall: true,
+    difficulty: true,
+    skill: true,
+    missed: true,
+    guessed: true,
+    flagged: true,
+    noted: false,
+    fast: false,
+    slow: false,
+  });
+  const [fastSec, setFastSec] = useState(15);
+  const [slowSec, setSlowSec] = useState(30);
+  const [fullDetail, setFullDetail] = useState(true);
+  const toggleInc = (k: keyof typeof inc) => setInc((p) => ({ ...p, [k]: !p[k] }));
+  const toggleDiff = (d: string) =>
+    setDiffFilter((prev) => {
+      const next = new Set(prev);
+      next.has(d) ? next.delete(d) : next.add(d);
+      return next;
+    });
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("practice_sessions")
-        .select("id, created_at, mode, current_index")
+        .select("id, created_at, mode, current_index, config")
         .eq("user_id", currentUserId())
         .order("created_at", { ascending: false })
         .limit(500);
@@ -127,129 +163,200 @@ export default function ReportsPage() {
       emptyMsg = `No practice recorded between ${start} and ${end}.`;
     }
     const { data } = await query;
-    const rows = ((data as unknown as AttemptRow[]) || []).filter((r) => r.question);
+    const allRows = ((data as unknown as AttemptRow[]) || []).filter((r) => r.question);
+    // Difficulty filter applies to the whole report.
+    const rows = allRows.filter((r) => diffFilter.has(r.question!.difficulty));
 
     if (rows.length === 0) {
-      setReport(emptyMsg);
+      setReport(diffFilter.size < 3 ? `${emptyMsg} (for the selected difficulties)` : emptyMsg);
       setBusy(false);
       return;
     }
 
-    // Per-difficulty aggregation.
-    const byDiff = new Map<string, { total: number; correct: number }>();
-    // Per-skill aggregation.
-    const bySkill = new Map<string, { total: number; correct: number; last: string }>();
-    for (const r of rows) {
-      const d = r.question!.difficulty;
-      const dg = byDiff.get(d) || { total: 0, correct: 0 };
-      dg.total++;
-      if (r.is_correct) dg.correct++;
-      byDiff.set(d, dg);
-
-      const s = r.question!.skill;
-      const g = bySkill.get(s) || { total: 0, correct: 0, last: r.created_at };
-      g.total++;
-      if (r.is_correct) g.correct++;
-      if (r.created_at > g.last) g.last = r.created_at;
-      bySkill.set(s, g);
-    }
-
-    // Missed questions (latest attempt in range that was wrong).
+    const pct = (c: number, t: number) => (t ? Math.round((c / t) * 100) : 0);
+    // Latest attempt per question within scope (rows are ascending, so last wins).
     const latest = new Map<string, AttemptRow>();
-    for (const r of rows) latest.set(r.question_uid, r); // rows ascending, so last wins
-    const missed = Array.from(latest.values()).filter((r) => !r.is_correct);
+    for (const r of rows) latest.set(r.question_uid, r);
+    const latestList = Array.from(latest.values());
 
-    // Correct-but-guessed (latest attempt in range, correct AND tagged as a guess).
-    const guessedCorrect = Array.from(latest.values()).filter(
-      (r) => r.is_correct && r.confidence === "guessed"
-    );
-    const anyConfidenceTag = rows.some((r) => r.confidence);
+    // Question-detail formatter, honoring the "full detail" toggle.
+    const detail = (q: QuestionMeta, headerExtra: string): string[] => {
+      const out = [`[${q.question_id}] ${q.skill} (${q.difficulty})${headerExtra ? " · " + headerExtra : ""}`];
+      if (fullDetail) {
+        out.push(`Question: ${(q.question_text || "").trim()}`);
+        (q.choices || []).forEach((c) => out.push(`${c.letter}. ${c.text}`));
+        out.push(`Correct answer: ${q.correct_answer}`);
+        if (q.rationale) out.push(`Rationale: ${q.rationale.trim()}`);
+      }
+      return out;
+    };
 
-    // Flagged questions the user has marked to revisit (all outstanding flags).
-    const { data: flagData } = await supabase
-      .from("question_state")
-      .select("question_uid")
-      .eq("user_id", uid)
-      .eq("flagged", true)
-      .limit(20000);
-    const flaggedIds = ((flagData as { question_uid: string }[]) || []).map((f) => f.question_uid);
-    let flaggedMeta: QuestionMeta[] = [];
-    if (flaggedIds.length) {
-      const { data: fq } = await supabase
-        .from("questions")
-        .select("question_id, skill, difficulty, correct_answer, question_text, choices, rationale")
-        .in("id", flaggedIds)
+    // Flags + notes (outstanding, all-time), restricted to the chosen difficulties.
+    let stateRows: { question_uid: string; flagged: boolean; note: string | null }[] = [];
+    if (inc.flagged || inc.noted) {
+      const { data: sd } = await supabase
+        .from("question_state")
+        .select("question_uid, flagged, note")
+        .eq("user_id", uid)
         .limit(20000);
-      flaggedMeta = ((fq as unknown as QuestionMeta[]) || []).sort((a, b) =>
-        a.skill.localeCompare(b.skill)
-      );
+      stateRows = (sd as any[]) || [];
+    }
+    const noteByUid = new Map<string, string>();
+    const flaggedUids: string[] = [];
+    for (const s of stateRows) {
+      if (inc.flagged && s.flagged) flaggedUids.push(s.question_uid);
+      if (inc.noted && s.note && s.note.trim()) noteByUid.set(s.question_uid, s.note.trim());
+    }
+    const stateUids = Array.from(new Set([...flaggedUids, ...noteByUid.keys()]));
+    const metaByUid = new Map<string, QuestionMeta>();
+    if (stateUids.length) {
+      const { data: mq } = await supabase
+        .from("questions")
+        .select("id, question_id, skill, difficulty, correct_answer, question_text, choices, rationale")
+        .in("id", stateUids)
+        .limit(20000);
+      for (const q of (mq as any[]) || []) {
+        if (diffFilter.has(q.difficulty)) metaByUid.set(q.id, q as QuestionMeta);
+      }
     }
 
     const total = rows.length;
     const correct = rows.filter((r) => r.is_correct).length;
     const seconds = rows.reduce((a, r) => a + r.time_spent_seconds, 0);
-    const acc = Math.round((correct / total) * 100);
-    const pct = (c: number, t: number) => (t ? Math.round((c / t) * 100) : 0);
+    const acc = pct(correct, total);
 
     const lines: string[] = [];
     lines.push(`SAT PRACTICE REPORT`);
     lines.push(headerLine);
+    if (diffFilter.size < 3) lines.push(`Difficulties: ${["Easy", "Medium", "Hard"].filter((d) => diffFilter.has(d)).join(", ")}`);
     lines.push(``);
-    lines.push(`OVERALL`);
-    lines.push(`- Questions attempted: ${total}`);
-    lines.push(`- Correct: ${correct} (${acc}% accuracy)`);
-    lines.push(`- Time spent: ${Math.round(seconds / 60)} min (${total ? Math.round(seconds / total) : 0}s avg/question)`);
-    lines.push(``);
-    lines.push(`BY DIFFICULTY`);
-    ["Easy", "Medium", "Hard"].forEach((d) => {
-      const g = byDiff.get(d) || { total: 0, correct: 0 };
-      lines.push(`- ${d}: ${g.correct}/${g.total} (${pct(g.correct, g.total)}%)`);
-    });
-    lines.push(``);
-    lines.push(`BY SKILL`);
-    Array.from(bySkill.entries())
-      .sort((a, b) => a[1].correct / a[1].total - b[1].correct / b[1].total)
-      .forEach(([skill, g]) => {
-        const a = pct(g.correct, g.total);
-        lines.push(`- ${skill}: ${g.correct}/${g.total} (${a}%) [${skillStatus(a)}] · last practiced ${g.last.slice(0, 10)}`);
-      });
-    lines.push(``);
-    lines.push(`FLAGGED (${flaggedMeta.length})`);
-    if (flaggedMeta.length === 0) {
-      lines.push(`- none flagged to revisit`);
-    } else {
-      flaggedMeta.forEach((q) => {
-        lines.push(`- [${q.question_id}] ${q.skill} (${q.difficulty})`);
-      });
-    }
-    if (anyConfidenceTag) {
+
+    if (inc.overall) {
+      lines.push(`OVERALL`);
+      lines.push(`- Questions attempted: ${total}`);
+      lines.push(`- Correct: ${correct} (${acc}% accuracy)`);
+      lines.push(`- Time spent: ${Math.round(seconds / 60)} min (${Math.round(seconds / total)}s avg/question)`);
       lines.push(``);
-      lines.push(`CORRECT BUT GUESSED (${guessedCorrect.length})`);
-      if (guessedCorrect.length === 0) {
-        lines.push(`- none`);
-      } else {
-        lines.push(`- ${guessedCorrect.map((r) => r.question!.question_id).join(", ")}`);
-      }
-    }
-    lines.push(``);
-    lines.push(`MISSED QUESTIONS (${missed.length})`);
-    if (missed.length === 0) {
-      lines.push(`- none outstanding in this period`);
-    } else {
-      missed.forEach((r) => {
-        const q = r.question!;
-        const reason = r.miss_reason ? MISS_REASON_TEXT[r.miss_reason] || r.miss_reason : "untagged";
-        lines.push(``);
-        lines.push(`[${q.question_id}] ${q.skill} (${q.difficulty}) · you=${r.selected_answer ?? "—"} correct=${q.correct_answer} · reason=${reason}`);
-        lines.push(`Question: ${(q.question_text || "").trim()}`);
-        (q.choices || []).forEach((c) => {
-          lines.push(`${c.letter}. ${c.text}`);
-        });
-        lines.push(`Rationale: ${(q.rationale || "—").trim()}`);
-      });
     }
 
-    setReport(lines.join("\n"));
+    if (inc.difficulty) {
+      const byDiff = new Map<string, { total: number; correct: number }>();
+      for (const r of rows) {
+        const g = byDiff.get(r.question!.difficulty) || { total: 0, correct: 0 };
+        g.total++;
+        if (r.is_correct) g.correct++;
+        byDiff.set(r.question!.difficulty, g);
+      }
+      lines.push(`BY DIFFICULTY`);
+      ["Easy", "Medium", "Hard"].filter((d) => diffFilter.has(d)).forEach((d) => {
+        const g = byDiff.get(d) || { total: 0, correct: 0 };
+        lines.push(`- ${d}: ${g.correct}/${g.total} (${pct(g.correct, g.total)}%)`);
+      });
+      lines.push(``);
+    }
+
+    if (inc.skill) {
+      const bySkill = new Map<string, { total: number; correct: number; last: string }>();
+      for (const r of rows) {
+        const g = bySkill.get(r.question!.skill) || { total: 0, correct: 0, last: r.created_at };
+        g.total++;
+        if (r.is_correct) g.correct++;
+        if (r.created_at > g.last) g.last = r.created_at;
+        bySkill.set(r.question!.skill, g);
+      }
+      lines.push(`BY SKILL`);
+      Array.from(bySkill.entries())
+        .sort((a, b) => a[1].correct / a[1].total - b[1].correct / b[1].total)
+        .forEach(([skill, g]) => {
+          const a = pct(g.correct, g.total);
+          lines.push(`- ${skill}: ${g.correct}/${g.total} (${a}%) [${skillStatus(a)}] · last practiced ${g.last.slice(0, 10)}`);
+        });
+      lines.push(``);
+    }
+
+    if (inc.missed) {
+      const missed = latestList.filter((r) => !r.is_correct);
+      lines.push(`MISSED QUESTIONS (${missed.length})`);
+      if (missed.length === 0) lines.push(`- none in scope`);
+      missed.forEach((r) => {
+        const reason = r.miss_reason ? MISS_REASON_TEXT[r.miss_reason] || r.miss_reason : "untagged";
+        lines.push(``);
+        lines.push(...detail(r.question!, `you=${r.selected_answer ?? "—"} correct=${r.question!.correct_answer} · ${r.time_spent_seconds}s · reason=${reason}`));
+      });
+      lines.push(``);
+    }
+
+    if (inc.guessed) {
+      const guessed = latestList.filter((r) => r.is_correct && r.confidence === "guessed");
+      lines.push(`CORRECT BUT GUESSED (${guessed.length})`);
+      if (guessed.length === 0) lines.push(`- none`);
+      guessed.forEach((r) => {
+        lines.push(``);
+        lines.push(...detail(r.question!, `${r.time_spent_seconds}s`));
+      });
+      lines.push(``);
+    }
+
+    if (inc.fast) {
+      const fast = latestList
+        .filter((r) => r.time_spent_seconds < fastSec)
+        .sort((a, b) => a.time_spent_seconds - b.time_spent_seconds);
+      lines.push(`ANSWERED FAST — under ${fastSec}s (${fast.length})`);
+      if (fast.length === 0) lines.push(`- none`);
+      fast.forEach((r) => {
+        lines.push(``);
+        lines.push(...detail(r.question!, `${r.time_spent_seconds}s · ${r.is_correct ? "correct" : "wrong"}`));
+      });
+      lines.push(``);
+    }
+
+    if (inc.slow) {
+      const slow = latestList
+        .filter((r) => r.time_spent_seconds > slowSec)
+        .sort((a, b) => b.time_spent_seconds - a.time_spent_seconds);
+      lines.push(`ANSWERED SLOW — over ${slowSec}s (${slow.length})`);
+      if (slow.length === 0) lines.push(`- none`);
+      slow.forEach((r) => {
+        lines.push(``);
+        lines.push(...detail(r.question!, `${r.time_spent_seconds}s · ${r.is_correct ? "correct" : "wrong"}`));
+      });
+      lines.push(``);
+    }
+
+    if (inc.noted) {
+      const noted = Array.from(noteByUid.entries())
+        .map(([uid2, note]) => ({ q: metaByUid.get(uid2), note }))
+        .filter((x): x is { q: QuestionMeta; note: string } => !!x.q)
+        .sort((a, b) => a.q.skill.localeCompare(b.q.skill));
+      lines.push(`NOTED QUESTIONS (${noted.length})`);
+      if (noted.length === 0) lines.push(`- no notes saved`);
+      noted.forEach(({ q, note }) => {
+        lines.push(``);
+        lines.push(...detail(q, ""));
+        lines.push(`Note: "${note}"`);
+      });
+      lines.push(``);
+    }
+
+    if (inc.flagged) {
+      const flagged = flaggedUids
+        .map((u) => metaByUid.get(u))
+        .filter((q): q is QuestionMeta => !!q)
+        .sort((a, b) => a.skill.localeCompare(b.skill));
+      lines.push(`FLAGGED (${flagged.length})`);
+      if (flagged.length === 0) lines.push(`- none flagged to revisit`);
+      flagged.forEach((q) => {
+        if (fullDetail) {
+          lines.push(``);
+          lines.push(...detail(q, ""));
+        } else {
+          lines.push(`- [${q.question_id}] ${q.skill} (${q.difficulty})`);
+        }
+      });
+      lines.push(``);
+    }
+
+    setReport(lines.join("\n").trimEnd());
     setBusy(false);
   }
 
@@ -394,7 +501,8 @@ export default function ReportsPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-slate-800">Progress report</h2>
         <p className="mb-3 text-sm text-slate-500">
-          Produce a clean summary you can copy out — for a date range or a single practice session.
+          Produce a summary you can copy out — for a date range or a single practice session. Choose which
+          sections to include, filter by difficulty, and pull out questions by note or by how long they took.
         </p>
         <div className="mb-3 inline-flex rounded-md border border-slate-200 p-0.5 text-sm">
           {(["range", "session"] as const).map((sc) => (
@@ -441,6 +549,101 @@ export default function ReportsPage() {
               )}
             </label>
           )}
+        </div>
+
+        {/* Report options */}
+        <div className="mt-4 space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Difficulties</p>
+            <div className="flex gap-2">
+              {["Easy", "Medium", "Hard"].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => toggleDiff(d)}
+                  className={`rounded-full border px-3 py-1 text-sm font-medium ${
+                    diffFilter.has(d) ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-300 bg-white text-slate-400"
+                  }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Include sections</p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+              {(
+                [
+                  ["overall", "Overall summary"],
+                  ["difficulty", "By difficulty"],
+                  ["skill", "By skill"],
+                  ["missed", "Missed questions"],
+                  ["guessed", "Correct but guessed"],
+                  ["flagged", "Flagged"],
+                  ["noted", "Noted (with notes)"],
+                  ["fast", `Answered fast (< ${fastSec}s)`],
+                  ["slow", `Answered slow (> ${slowSec}s)`],
+                ] as [keyof typeof inc, string][]
+              ).map(([k, label]) => (
+                <label key={k} className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={inc[k]}
+                    onChange={() => toggleInc(k)}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {(inc.fast || inc.slow) && (
+            <div className="flex flex-wrap gap-4">
+              {inc.fast && (
+                <label className="text-sm text-slate-600">
+                  Fast: under{" "}
+                  <input
+                    type="number"
+                    min={1}
+                    max={600}
+                    value={fastSec}
+                    onChange={(e) => setFastSec(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="mx-1 w-20 rounded-md border border-slate-300 px-2 py-1"
+                  />
+                  seconds
+                </label>
+              )}
+              {inc.slow && (
+                <label className="text-sm text-slate-600">
+                  Slow: over{" "}
+                  <input
+                    type="number"
+                    min={1}
+                    max={3600}
+                    value={slowSec}
+                    onChange={(e) => setSlowSec(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="mx-1 w-20 rounded-md border border-slate-300 px-2 py-1"
+                  />
+                  seconds
+                </label>
+              )}
+            </div>
+          )}
+
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={fullDetail}
+              onChange={(e) => setFullDetail(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-brand-600"
+            />
+            Include full question text, choices &amp; rationale in the lists
+          </label>
+        </div>
+
+        <div className="mt-4">
           <button onClick={generate} disabled={busy || (scope === "session" && !sessionId)} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             {busy ? "Generating…" : "Generate report"}
           </button>
