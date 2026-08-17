@@ -49,7 +49,7 @@ function contentUnderlines(
   opl: any,
   OPS: any,
   Util: any
-): { spans: string[]; segCount: number } {
+): { spans: string[]; segCount: number; segs: { x0: number; x1: number; y: number }[] } {
   const fn = opl.fnArray as number[];
   const args = opl.argsArray as any[];
   const segs: { x0: number; x1: number; y: number }[] = [];
@@ -119,7 +119,7 @@ function contentUnderlines(
       (s) => s.y <= it.y + 2 && s.y >= it.y - 7 && Math.min(it.x1, s.x1) - Math.max(it.x0, s.x0) > it.w * 0.4
     )
   );
-  return { spans: spansFromUnderlined(und), segCount: segs.length };
+  return { spans: spansFromUnderlined(und), segCount: segs.length, segs };
 }
 
 // Method 2: underlines stored as text-markup annotations (subtype "Underline"),
@@ -189,12 +189,14 @@ async function extractContent(
   let annoUnderlines = 0;
   let contentSpanCount = 0;
   let annoSpanCount = 0;
+  let sampleDiag = "";
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const tc = await page.getTextContent();
     const items: Item[] = [];
     let lastY: number | null = null;
     let line = "";
+    let pageText = "";
     for (const item of tc.items as any[]) {
       if (!("str" in item)) continue;
       const y = item.transform[5];
@@ -203,6 +205,7 @@ async function extractContent(
         line = "";
       }
       line += item.str;
+      pageText += item.str;
       lastY = y;
       if (item.str.trim())
         items.push({ str: item.str, x0: item.transform[4], x1: item.transform[4] + item.width, y, w: item.width });
@@ -214,6 +217,24 @@ async function extractContent(
       underlineSpans.push(...c.spans);
       contentSegs += c.segCount;
       contentSpanCount += c.spans.length;
+      // On the first page that mentions an underline, measure how far each
+      // horizontal segment sits below the nearest text above it (with x-overlap).
+      // Small gaps (~0–4) would mean underlines ARE present as segments.
+      if (!sampleDiag && /underlined/i.test(pageText) && c.segs.length) {
+        const gaps: number[] = [];
+        for (const s of c.segs) {
+          let best = Infinity;
+          for (const it of items) {
+            if (it.y >= s.y - 1 && it.y - s.y < best && Math.min(it.x1, s.x1) - Math.max(it.x0, s.x0) > 1) {
+              best = it.y - s.y;
+            }
+          }
+          if (best !== Infinity) gaps.push(Math.round(best * 10) / 10);
+        }
+        gaps.sort((a, b) => a - b);
+        const near = gaps.filter((g) => g >= -1 && g <= 4).length;
+        sampleDiag = ` · sample(pg${p}): segs=${c.segs.length}, textItems=${items.length}, gap≤4=${near}, smallestGaps=[${gaps.slice(0, 12).join(",")}]`;
+      }
     } catch {
       /* best-effort */
     }
@@ -231,7 +252,7 @@ async function extractContent(
   _underlineDiag =
     `pages=${doc.numPages} · annotationSubtypes=${JSON.stringify(subtypeTotals)} · ` +
     `underlineAnnotations=${annoUnderlines} · contentHorizontalSegments=${contentSegs} · ` +
-    `spansFromAnnotations=${annoSpanCount} · spansFromContent=${contentSpanCount}`;
+    `spansFromAnnotations=${annoSpanCount} · spansFromContent=${contentSpanCount}${sampleDiag}`;
   return { lines, underlineSpans };
 }
 
