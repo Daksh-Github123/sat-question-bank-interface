@@ -55,6 +55,7 @@ interface SkillStat {
   available: number;
   attempts: number;
   correct: number;
+  latestCorrect: number; // distinct questions whose most recent attempt is correct
   distinct: Set<string>;
   seconds: number;
   recent: number; // answers in last RECENT_DAYS
@@ -164,6 +165,7 @@ export default function DashboardPage() {
           available: meta?.total || 0,
           attempts: 0,
           correct: 0,
+          latestCorrect: 0,
           distinct: new Set(),
           seconds: 0,
           recent: 0,
@@ -192,12 +194,10 @@ export default function DashboardPage() {
     }
     const byDay = new Map<string, { count: number; seconds: number }>();
 
-    let overallCorrect = 0;
     let weekCount = 0;
     const distinctAllQ = new Set<string>();
 
     for (const a of attempts) {
-      if (a.is_correct) overallCorrect++;
       const t = new Date(a.created_at).getTime();
       if (t >= recentCut) weekCount++;
 
@@ -229,6 +229,19 @@ export default function DashboardPage() {
       s.secondHalf = half(seq.slice(mid));
     });
 
+    // Accuracy uses the MOST RECENT attempt per question, so a corrected mistake
+    // counts as right. (Volume, time, and activity above stay cumulative.)
+    const latestByQ = new Map<string, AttemptRow>();
+    for (const a of attempts) if (a.question) latestByQ.set(a.question_uid, a);
+    let overallCorrectLatest = 0;
+    latestByQ.forEach((a) => {
+      if (a.is_correct) {
+        overallCorrectLatest++;
+        const s = stats.get(a.question!.skill);
+        if (s) s.latestCorrect++;
+      }
+    });
+
     const questionBars: DayBar[] = days.map((d) => {
       const k = dayKey(d);
       const v = byDay.get(k)?.count || 0;
@@ -246,10 +259,12 @@ export default function DashboardPage() {
 
     const bankTotal = bank.length;
 
+    const distinctCount = distinctAllQ.size;
     const tiles = {
-      accuracy: totalAttempts ? Math.round((overallCorrect / totalAttempts) * 100) : 0,
+      accuracy: distinctCount ? Math.round((overallCorrectLatest / distinctCount) * 100) : 0,
       totalAttempts,
-      overallCorrect,
+      overallCorrect: overallCorrectLatest,
+      answered: distinctCount,
       covered: distinctAllQ.size,
       bankTotal,
       totalSeconds: totalPracticeSeconds,
@@ -272,8 +287,8 @@ export default function DashboardPage() {
     list = [...list].sort((a, b) => {
       if (sort === "az") return a.skill.localeCompare(b.skill);
       if (sort === "accuracy") {
-        const aa = a.attempts ? a.correct / a.attempts : 2; // unpracticed last
-        const bb = b.attempts ? b.correct / b.attempts : 2;
+        const aa = a.distinct.size ? a.latestCorrect / a.distinct.size : 2; // unpracticed last
+        const bb = b.distinct.size ? b.latestCorrect / b.distinct.size : 2;
         return aa - bb;
       }
       if (sort === "coverage") {
@@ -300,7 +315,7 @@ export default function DashboardPage() {
 
       {/* Tiles */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatTile label="Overall accuracy" value={`${tiles.accuracy}%`} sub={`${tiles.overallCorrect}/${tiles.totalAttempts} answered`} />
+        <StatTile label="Overall accuracy" value={`${tiles.accuracy}%`} sub={`${tiles.overallCorrect}/${tiles.answered} correct (latest)`} />
         <StatTile label="Coverage" value={`${tiles.covered}/${tiles.bankTotal}`} sub="questions practiced" />
         <StatTile label="Total time" value={fmtTime(tiles.totalSeconds)} sub="practicing (incl. review)" />
         <StatTile label="Last 7 days" value={`${tiles.weekCount}`} sub="questions answered" />
@@ -371,8 +386,8 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {visibleSkills.map((s) => {
-                const a = acc(s.attempts, s.correct);
-                const weak = s.attempts >= 3 && s.correct / s.attempts < WEAKNESS_THRESHOLD;
+                const a = acc(s.distinct.size, s.latestCorrect);
+                const weak = s.distinct.size >= 3 && s.latestCorrect / s.distinct.size < WEAKNESS_THRESHOLD;
                 const neglected = s.attempts === 0 || (s.lastMs != null && Date.now() - s.lastMs > NEGLECT_DAYS * DAY_MS);
                 const done = s.available ? Math.min(s.distinct.size, s.available) : s.distinct.size;
                 let trend = <span className="text-slate-300">—</span>;
@@ -417,7 +432,11 @@ export default function DashboardPage() {
           </table>
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          &ldquo;Done / avail&rdquo; counts questions you&apos;ve answered in each topic against the total in the bank. Rows in amber are below {Math.round(WEAKNESS_THRESHOLD * 100)}%. &ldquo;Last done&rdquo; in red means it hasn&apos;t been practiced in over {NEGLECT_DAYS} days.
+          Accuracy counts your <strong>most recent</strong> answer per question, so re-doing a mistake correctly
+          counts as right; time, volume, and activity are cumulative. &ldquo;Done / avail&rdquo; counts questions
+          you&apos;ve answered in each topic against the total in the bank. Rows in amber are below{" "}
+          {Math.round(WEAKNESS_THRESHOLD * 100)}%. &ldquo;Last done&rdquo; in red means it hasn&apos;t been practiced
+          in over {NEGLECT_DAYS} days.
         </p>
       </section>
     </div>
