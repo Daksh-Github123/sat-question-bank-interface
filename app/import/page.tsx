@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { parsePdf } from "@/lib/pdfParser";
+import { parsePdf, getUnderlineDiagnostic } from "@/lib/pdfParser";
 import { supabase } from "@/lib/supabaseClient";
 import type { ParsedQuestion } from "@/lib/types";
 import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
@@ -10,6 +10,7 @@ import { useUser } from "@/lib/userContext";
 interface FileResult {
   name: string;
   parsed: ParsedQuestion[];
+  diag?: string;
   error?: string;
 }
 
@@ -30,7 +31,7 @@ export default function ImportPage() {
       try {
         const buf = await file.arrayBuffer();
         const parsed = await parsePdf(buf, file.name);
-        out.push({ name: file.name, parsed });
+        out.push({ name: file.name, parsed, diag: getUnderlineDiagnostic() });
       } catch (e: any) {
         out.push({ name: file.name, parsed: [], error: e?.message || "Failed to parse" });
       }
@@ -198,6 +199,18 @@ export default function ImportPage() {
             <p className="mb-2 text-xs text-slate-400">
               Saving these will render the exact underline in Practice, Browse, and Review.
             </p>
+            {results.some((r) => r.diag) && (
+              <div className="mb-2 rounded-md bg-slate-50 p-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Detection diagnostic</p>
+                {results.map((r) =>
+                  r.diag ? (
+                    <p key={r.name} className="break-all font-mono text-[11px] text-slate-500">
+                      {r.name}: {r.diag}
+                    </p>
+                  ) : null
+                )}
+              </div>
+            )}
             <div className="max-h-56 space-y-1.5 overflow-auto">
               {allParsed
                 .filter((q) => q.underline_spans && q.underline_spans.length)

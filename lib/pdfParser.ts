@@ -16,26 +16,40 @@ async function getPdfjs() {
   return pdfjs;
 }
 
-/**
- * Detect underlined text on a page. The source PDFs draw underlines as thin
- * horizontal graphics (stroked lines or thin filled rectangles) beneath the
- * text, so we collect those segments (tracking the graphics transform) and
- * report the text whose baseline sits just above one. Returns the underlined
- * text as contiguous spans.
- */
-async function pageUnderlineSpans(page: any, OPS: any, Util: any): Promise<string[]> {
-  const tc = await page.getTextContent();
-  const items = (tc.items as any[])
-    .filter((it) => "str" in it && it.str.trim())
-    .map((it) => ({
-      str: it.str,
-      x0: it.transform[4],
-      x1: it.transform[4] + it.width,
-      y: it.transform[5],
-      w: it.width,
-    }));
+interface Item {
+  str: string;
+  x0: number;
+  x1: number;
+  y: number;
+  w: number;
+}
 
-  const opl = await page.getOperatorList();
+// Join a set of underlined text items into contiguous, reading-order spans.
+function spansFromUnderlined(und: Item[]): string[] {
+  und.sort((a, b) => Math.round(b.y / 3) - Math.round(a.y / 3) || a.x0 - b.x0);
+  const spans: string[] = [];
+  let cur = "";
+  let prev: Item | null = null;
+  for (const it of und) {
+    if (prev && (Math.abs(prev.y - it.y) > 3 || it.x0 - prev.x1 > 15)) {
+      if (cur.trim()) spans.push(cur.trim());
+      cur = "";
+    }
+    cur += (cur ? " " : "") + it.str;
+    prev = it;
+  }
+  if (cur.trim()) spans.push(cur.trim());
+  return spans;
+}
+
+// Method 1: underlines drawn in the content stream as thin horizontal graphics
+// (stroked lines / filled rectangles), tracking the graphics transform.
+function contentUnderlines(
+  items: Item[],
+  opl: any,
+  OPS: any,
+  Util: any
+): { spans: string[]; segCount: number } {
   const fn = opl.fnArray as number[];
   const args = opl.argsArray as any[];
   const segs: { x0: number; x1: number; y: number }[] = [];
@@ -100,28 +114,66 @@ async function pageUnderlineSpans(page: any, OPS: any, Util: any): Promise<strin
     }
   }
   segs.push(...pending);
-
   const und = items.filter((it) =>
     segs.some(
       (s) => s.y <= it.y + 2 && s.y >= it.y - 7 && Math.min(it.x1, s.x1) - Math.max(it.x0, s.x0) > it.w * 0.4
     )
   );
-  // Reading order: group into lines (y bins, top→bottom), left→right within a line.
-  und.sort((a, b) => Math.round(b.y / 3) - Math.round(a.y / 3) || a.x0 - b.x0);
-  // Join contiguous underlined text; break at a line change or a big horizontal gap.
-  const spans: string[] = [];
-  let cur = "";
-  let prev: (typeof und)[number] | null = null;
-  for (const it of und) {
-    if (prev && (Math.abs(prev.y - it.y) > 3 || it.x0 - prev.x1 > 15)) {
-      if (cur.trim()) spans.push(cur.trim());
-      cur = "";
+  return { spans: spansFromUnderlined(und), segCount: segs.length };
+}
+
+// Method 2: underlines stored as text-markup annotations (subtype "Underline"),
+// which the content stream / operator list does not contain. QuadPoints (or the
+// annotation rect) give the region over the underlined text.
+function annotationUnderlines(
+  items: Item[],
+  annots: any[]
+): { spans: string[]; subtypes: Record<string, number>; underlineCount: number } {
+  const subtypes: Record<string, number> = {};
+  const regions: { minX: number; maxX: number; minY: number; maxY: number }[] = [];
+  let underlineCount = 0;
+  const pushRegion = (xs: number[], ys: number[]) =>
+    regions.push({ minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) });
+  for (const an of annots || []) {
+    const st = an.subtype || "?";
+    subtypes[st] = (subtypes[st] || 0) + 1;
+    if (st !== "Underline") continue;
+    underlineCount++;
+    const qp = an.quadPoints;
+    if (qp && qp.length) {
+      if (typeof qp[0] === "object" && qp[0] !== null && "x" in qp[0]) {
+        // flat list of {x,y}, four per quad
+        for (let i = 0; i + 3 < qp.length; i += 4)
+          pushRegion([qp[i].x, qp[i + 1].x, qp[i + 2].x, qp[i + 3].x], [qp[i].y, qp[i + 1].y, qp[i + 2].y, qp[i + 3].y]);
+      } else if (Array.isArray(qp[0])) {
+        // array of quads, each an array of {x,y} (or [x,y])
+        for (const quad of qp)
+          pushRegion(
+            quad.map((pt: any) => (typeof pt.x === "number" ? pt.x : pt[0])),
+            quad.map((pt: any) => (typeof pt.y === "number" ? pt.y : pt[1]))
+          );
+      } else {
+        // flat numeric array, eight per quad (x1 y1 … x4 y4)
+        for (let i = 0; i + 7 < qp.length; i += 8)
+          pushRegion([qp[i], qp[i + 2], qp[i + 4], qp[i + 6]], [qp[i + 1], qp[i + 3], qp[i + 5], qp[i + 7]]);
+      }
+    } else if (an.rect && an.rect.length === 4) {
+      pushRegion([an.rect[0], an.rect[2]], [an.rect[1], an.rect[3]]);
     }
-    cur += (cur ? " " : "") + it.str;
-    prev = it;
   }
-  if (cur.trim()) spans.push(cur.trim());
-  return spans;
+  const und = items.filter((it) =>
+    regions.some(
+      (r) => it.y >= r.minY - 2 && it.y <= r.maxY + 3 && Math.min(it.x1, r.maxX) - Math.max(it.x0, r.minX) > it.w * 0.4
+    )
+  );
+  return { spans: spansFromUnderlined(und), subtypes, underlineCount };
+}
+
+// Diagnostic from the most recent parse, surfaced in the Import UI so underline
+// detection can be verified/calibrated without sharing the PDF.
+let _underlineDiag = "";
+export function getUnderlineDiagnostic(): string {
+  return _underlineDiag;
 }
 
 /** Extract text lines and all underlined spans from a PDF in a single pass. */
@@ -132,9 +184,15 @@ async function extractContent(
   const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
   const lines: string[] = [];
   const underlineSpans: string[] = [];
+  const subtypeTotals: Record<string, number> = {};
+  let contentSegs = 0;
+  let annoUnderlines = 0;
+  let contentSpanCount = 0;
+  let annoSpanCount = 0;
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const tc = await page.getTextContent();
+    const items: Item[] = [];
     let lastY: number | null = null;
     let line = "";
     for (const item of tc.items as any[]) {
@@ -146,14 +204,34 @@ async function extractContent(
       }
       line += item.str;
       lastY = y;
+      if (item.str.trim())
+        items.push({ str: item.str, x0: item.transform[4], x1: item.transform[4] + item.width, y, w: item.width });
     }
     if (line) lines.push(line);
     try {
-      underlineSpans.push(...(await pageUnderlineSpans(page, (pdfjs as any).OPS, (pdfjs as any).Util)));
+      const opl = await page.getOperatorList();
+      const c = contentUnderlines(items, opl, (pdfjs as any).OPS, (pdfjs as any).Util);
+      underlineSpans.push(...c.spans);
+      contentSegs += c.segCount;
+      contentSpanCount += c.spans.length;
     } catch {
-      // Underline detection is best-effort; never let it break text import.
+      /* best-effort */
+    }
+    try {
+      const annots = await page.getAnnotations();
+      const an = annotationUnderlines(items, annots);
+      underlineSpans.push(...an.spans);
+      annoUnderlines += an.underlineCount;
+      annoSpanCount += an.spans.length;
+      for (const [k, v] of Object.entries(an.subtypes)) subtypeTotals[k] = (subtypeTotals[k] || 0) + v;
+    } catch {
+      /* best-effort */
     }
   }
+  _underlineDiag =
+    `pages=${doc.numPages} · annotationSubtypes=${JSON.stringify(subtypeTotals)} · ` +
+    `underlineAnnotations=${annoUnderlines} · contentHorizontalSegments=${contentSegs} · ` +
+    `spansFromAnnotations=${annoSpanCount} · spansFromContent=${contentSpanCount}`;
   return { lines, underlineSpans };
 }
 
