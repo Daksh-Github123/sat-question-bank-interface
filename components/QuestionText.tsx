@@ -1,8 +1,33 @@
 "use client";
 
+import { underlineRanges } from "@/lib/underline";
+
 // Renders a question's text. Cross-Text Connections questions bundle two
 // passages ("Text 1 …", "Text 2 …") plus a prompt into one string; this splits
 // them into labeled blocks for readability. Everything else renders as-is.
+//
+// Underlining: when `underlineSpans` (exact text captured from the source PDF) is
+// provided, those spans are underlined precisely. Otherwise we fall back to a
+// heuristic for claim/conclusion-style prompts (see below).
+
+// Wrap the given character ranges of `text` in an underline.
+function withRanges(text: string, ranges: [number, number][]): React.ReactNode {
+  if (!ranges.length) return text;
+  const u = "underline decoration-2 underline-offset-2";
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  ranges.forEach(([s, e], i) => {
+    if (s > cursor) parts.push(text.slice(cursor, s));
+    parts.push(
+      <span key={i} className={u}>
+        {text.slice(s, e)}
+      </span>
+    );
+    cursor = e;
+  });
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
+}
 
 const PROMPT_LEAD =
   /(Based on (?:the|both) texts|How would the author|The author of Text|Which choice|Which statement|What would the author)/;
@@ -67,11 +92,14 @@ function passageBody(passage: string, underline: boolean): React.ReactNode {
 export default function QuestionText({
   text,
   className = "",
+  underlineSpans = null,
 }: {
   text: string;
   className?: string;
+  underlineSpans?: string[] | null;
 }) {
   const p = `whitespace-pre-wrap ${className}`;
+  const hasSpans = !!(underlineSpans && underlineSpans.length);
   const i1 = text.indexOf("Text 1");
   const i2 = i1 >= 0 ? text.indexOf("Text 2", i1 + 6) : -1;
 
@@ -93,6 +121,14 @@ export default function QuestionText({
       const um = prompt.match(/underlined[\s\S]{0,40}?\bText\s*([12])\b/i);
       ulTarget = um ? parseInt(um[1], 10) : 1;
     }
+    // Prefer exact PDF-captured spans; otherwise fall back to the assertion heuristic.
+    const renderPassage = (passage: string, heuristicOn: boolean): React.ReactNode => {
+      if (hasSpans) {
+        const r = underlineRanges(passage, underlineSpans);
+        return r.length ? withRanges(passage, r) : passage;
+      }
+      return passageBody(passage, heuristicOn);
+    };
     return (
       <div className="space-y-3">
         {intro && <p className={p}>{intro}</p>}
@@ -101,7 +137,7 @@ export default function QuestionText({
           <span className="mb-2 inline-block rounded bg-brand-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
             Text 1
           </span>
-          <p className={p}>{passageBody(t1, ulTarget === 1)}</p>
+          <p className={p}>{renderPassage(t1, ulTarget === 1)}</p>
         </div>
         {/* Explicit divide between the two passages */}
         <div className="flex items-center gap-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -114,13 +150,21 @@ export default function QuestionText({
           <span className="mb-2 inline-block rounded bg-teal-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
             Text 2
           </span>
-          <p className={p}>{passageBody(t2, ulTarget === 2)}</p>
+          <p className={p}>{renderPassage(t2, ulTarget === 2)}</p>
         </div>
         {prompt && (
-          <p className={`${p} border-t border-slate-200 pt-3 font-medium text-slate-800`}>{prompt}</p>
+          <p className={`${p} border-t border-slate-200 pt-3 font-medium text-slate-800`}>
+            {hasSpans ? withRanges(prompt, underlineRanges(prompt, underlineSpans)) : prompt}
+          </p>
         )}
       </div>
     );
+  }
+
+  // Exact underline spans captured from the source PDF take precedence.
+  if (hasSpans) {
+    const r = underlineRanges(text, underlineSpans);
+    if (r.length) return <p className={p}>{withRanges(text, r)}</p>;
   }
 
   // Single-passage questions referencing "the underlined claim/…": re-underline

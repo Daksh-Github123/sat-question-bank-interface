@@ -28,6 +28,7 @@ export interface Question {
   graph_url: string | null;
   accepted_answers: AcceptedAnswers | null;
   needs_graphic: boolean;
+  underline_spans: string[] | null; // exact text spans underlined in the source PDF
   created_at: string;
 }
 
@@ -55,6 +56,7 @@ export interface ParsedQuestion {
   correct_answer: string;
   rationale: string;
   source_file?: string;
+  underline_spans?: string[]; // set only for questions with a detected underline
 }
 
 export interface Attempt {

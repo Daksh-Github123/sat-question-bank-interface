@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { parsePdf } from "@/lib/pdfParser";
+import { parsePdf, getUnderlineDiagnostic } from "@/lib/pdfParser";
 import { supabase } from "@/lib/supabaseClient";
 import type { ParsedQuestion } from "@/lib/types";
 import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
@@ -10,6 +10,7 @@ import { useUser } from "@/lib/userContext";
 interface FileResult {
   name: string;
   parsed: ParsedQuestion[];
+  diag?: string;
   error?: string;
 }
 
@@ -30,7 +31,7 @@ export default function ImportPage() {
       try {
         const buf = await file.arrayBuffer();
         const parsed = await parsePdf(buf, file.name);
-        out.push({ name: file.name, parsed });
+        out.push({ name: file.name, parsed, diag: getUnderlineDiagnostic() });
       } catch (e: any) {
         out.push({ name: file.name, parsed: [], error: e?.message || "Failed to parse" });
       }
@@ -43,6 +44,16 @@ export default function ImportPage() {
   const allParsed = results.flatMap((r) => r.parsed);
   const totalParsed = allParsed.length;
 
+  async function upsertChunks(rows: any[]): Promise<string | null> {
+    const chunkSize = 200;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const { error } = await supabase.from("questions").upsert(chunk, { onConflict: "question_id" });
+      if (error) return error.message;
+    }
+    return null;
+  }
+
   async function save() {
     if (!totalParsed) return;
     setBusy(true);
@@ -52,22 +63,51 @@ export default function ImportPage() {
     for (const q of allParsed) byId.set(q.question_id, q);
     const rows = Array.from(byId.values());
 
-    let inserted = 0;
-    const chunkSize = 200;
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize);
-      const { error } = await supabase
+    // Questions that already have an attached graphic had their question_text
+    // hand-cleaned (the flattened table/graph text was stripped so the image
+    // carries it). A re-import must NOT overwrite that with the raw flattened
+    // text — so for those we upsert every field EXCEPT question_text (keeping
+    // difficulty, choices, rationale, and the newly detected underline_spans up
+    // to date). graph_url / needs_graphic are already preserved (never sent).
+    setStatus("Checking graphic questions…");
+    const graphic = new Set<string>();
+    for (let from = 0; ; from += 1000) {
+      const { data } = await supabase
         .from("questions")
-        .upsert(chunk, { onConflict: "question_id" });
-      if (error) {
-        setStatus(`Error saving: ${error.message}`);
-        setBusy(false);
-        return;
-      }
-      inserted += chunk.length;
-      setStatus(`Saved ${inserted}/${rows.length}…`);
+        .select("question_id")
+        .not("graph_url", "is", null)
+        .range(from, from + 999);
+      const batch = (data as { question_id: string }[]) || [];
+      batch.forEach((r) => graphic.add(r.question_id));
+      if (batch.length < 1000) break;
     }
-    setSaved(inserted);
+
+    const normalRows = rows.filter((r) => !graphic.has(r.question_id));
+    // Strip question_text (and source_file, which is irrelevant here) so the
+    // cleaned text is preserved for graphic questions.
+    const graphicRows = rows
+      .filter((r) => graphic.has(r.question_id))
+      .map((r) => {
+        const copy: any = { ...r };
+        delete copy.question_text;
+        delete copy.source_file;
+        return copy;
+      });
+
+    setStatus("Saving to Supabase…");
+    const err1 = await upsertChunks(normalRows);
+    if (err1) {
+      setStatus(`Error saving: ${err1}`);
+      setBusy(false);
+      return;
+    }
+    const err2 = await upsertChunks(graphicRows);
+    if (err2) {
+      setStatus(`Error saving: ${err2}`);
+      setBusy(false);
+      return;
+    }
+    setSaved(normalRows.length + graphicRows.length);
     setStatus("");
     setBusy(false);
   }
@@ -149,6 +189,49 @@ export default function ImportPage() {
             {status && !busy && (
               <p className="mt-3 text-sm text-rose-600">{status}</p>
             )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="mb-2 text-sm font-semibold text-slate-800">
+              Underlines detected in {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length} question
+              {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length === 1 ? "" : "s"}
+            </p>
+            <p className="mb-2 text-xs text-slate-400">
+              Saving these will render the exact underline in Practice, Browse, and Review.
+            </p>
+            {results.some((r) => r.diag) && (
+              <div className="mb-2 rounded-md bg-slate-50 p-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Detection diagnostic</p>
+                {results.map((r) =>
+                  r.diag ? (
+                    <p key={r.name} className="break-all font-mono text-[11px] text-slate-500">
+                      {r.name}: {r.diag}
+                    </p>
+                  ) : null
+                )}
+              </div>
+            )}
+            <div className="max-h-56 space-y-1.5 overflow-auto">
+              {allParsed
+                .filter((q) => q.underline_spans && q.underline_spans.length)
+                .slice(0, 40)
+                .map((q) => (
+                  <div key={q.question_id} className="text-xs text-slate-600">
+                    <span className="font-mono text-slate-400">{q.question_id}</span>{" "}
+                    {q.underline_spans!.map((s, i) => (
+                      <span key={i}>
+                        {i > 0 && <span className="text-slate-300"> · </span>}
+                        <span className="underline decoration-slate-400">{s}</span>
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length === 0 && (
+                <p className="text-xs text-slate-400">
+                  No underlines detected in these files. (Only questions whose prompt mentions an underline are checked.)
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-4">
