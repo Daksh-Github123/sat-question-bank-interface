@@ -9,6 +9,8 @@ import { REVIEW_INTERVAL_DAYS } from "@/lib/practice";
 import { setNote as persistNote } from "@/lib/questionState";
 import { currentUserId } from "@/lib/user";
 import QuestionText from "@/components/QuestionText";
+import CopyButton from "@/components/ui/CopyButton";
+import { PageLoader } from "@/components/ui/Spinner";
 
 interface WrongItem {
   attemptId: string;
@@ -34,7 +36,6 @@ export default function ReviewPage() {
   const [reason, setReason] = useState("");
   const [dueOnly, setDueOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -95,14 +96,6 @@ export default function ReviewPage() {
     return m;
   }, [items]);
 
-  async function copyId(qid: string) {
-    try {
-      await navigator.clipboard.writeText(qid);
-      setCopied(qid);
-      setTimeout(() => setCopied(null), 1500);
-    } catch {}
-  }
-
   async function updateReason(item: WrongItem, r: MissReason) {
     setItems((prev) => prev.map((i) => (i.attemptId === item.attemptId ? { ...i, missReason: r } : i)));
     await supabase.from("attempts").update({ miss_reason: r }).eq("id", item.attemptId);
@@ -113,7 +106,7 @@ export default function ReviewPage() {
     await persistNote(item.question.id, note);
   }
 
-  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading your mistakes…</p>;
+  if (loading) return <PageLoader label="Loading your mistakes…" />;
 
   return (
     <div className="space-y-5">
@@ -187,13 +180,12 @@ export default function ReviewPage() {
                       </p>
                     </button>
                     <div className="flex flex-none flex-col items-end gap-1">
-                      <button
-                        onClick={() => copyId(q.question_id)}
+                      <CopyButton
+                        text={q.question_id}
+                        label={q.question_id}
+                        copiedLabel="copied!"
                         className="rounded border border-slate-200 dark:border-slate-800 px-2 py-1 font-mono text-[11px] text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-                        title="Copy question ID"
-                      >
-                        {copied === q.question_id ? "copied!" : q.question_id}
-                      </button>
+                      />
                     </div>
                   </div>
 

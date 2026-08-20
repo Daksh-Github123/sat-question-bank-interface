@@ -7,6 +7,7 @@ import { WEAKNESS_THRESHOLD } from "@/lib/practice";
 import { currentUserId } from "@/lib/user";
 import { TESTS } from "@/lib/taxonomy";
 import DailyBars, { DayBar } from "@/components/DailyBars";
+import { PageLoader } from "@/components/ui/Spinner";
 
 interface AttemptRow {
   question_uid: string;
@@ -302,7 +303,7 @@ export default function DashboardPage() {
     return list;
   }, [skillStats, tab, sort]);
 
-  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading your statistics…</p>;
+  if (loading) return <PageLoader label="Loading your statistics…" />;
 
   const tabs = ["All", ...presentTests];
 

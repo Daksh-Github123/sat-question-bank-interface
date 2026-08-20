@@ -7,6 +7,9 @@ import { currentUserId } from "@/lib/user";
 import { useUser } from "@/lib/userContext";
 import { deleteSession, endSession } from "@/lib/practice";
 import type { PracticeSessionRow } from "@/lib/types";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/ToastProvider";
+import { PageLoader } from "@/components/ui/Spinner";
 
 interface AttemptAgg {
   session_id: string | null;
@@ -37,6 +40,8 @@ function fmtDate(iso: string) {
 
 export default function MorePage() {
   const { user } = useUser();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [sessions, setSessions] = useState<PracticeSessionRow[]>([]);
   const [attempts, setAttempts] = useState<AttemptAgg[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,27 +73,29 @@ export default function MorePage() {
 
   async function handleDelete(s: PracticeSessionRow, answered: number) {
     const incomplete = s.status !== "completed";
-    const msg = incomplete
-      ? `Delete this session? The ${answered} question${answered === 1 ? "" : "s"} you answered will be erased from your stats and become available again as new questions.`
-      : `Delete this session? Its ${answered} question${answered === 1 ? "" : "s"} will be removed from your stats and become available again as new questions.`;
-    if (!window.confirm(msg)) return;
+    const body = incomplete
+      ? `The ${answered} question${answered === 1 ? "" : "s"} you answered will be erased from your stats and become available again as new questions.`
+      : `Its ${answered} question${answered === 1 ? "" : "s"} will be removed from your stats and become available again as new questions.`;
+    if (!(await confirm({ title: "Delete this session?", body, confirmLabel: "Delete", danger: true }))) return;
     setBusyId(s.id);
     await deleteSession(s.id);
     await load();
     setBusyId(null);
+    toast.success("Session deleted.");
   }
 
   async function handleEnd(s: PracticeSessionRow, answered: number) {
-    if (
-      !window.confirm(
-        `End this session? The ${answered} question${answered === 1 ? "" : "s"} you already answered will be kept in your stats; the rest go back to being new questions for future sessions.`
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "End this session?",
+      body: `The ${answered} question${answered === 1 ? "" : "s"} you already answered will be kept in your stats; the rest go back to being new questions for future sessions.`,
+      confirmLabel: "End session",
+    });
+    if (!ok) return;
     setBusyId(s.id);
     await endSession(s.id);
     await load();
     setBusyId(null);
+    toast.success("Session ended.");
   }
 
   const history = useMemo(() => {
@@ -138,7 +145,7 @@ export default function MorePage() {
       <div>
         <h2 className="mb-3 text-lg font-semibold text-slate-800 dark:text-slate-100">Session history</h2>
         {loading ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
+          <PageLoader label="Loading session history…" />
         ) : history.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
             No practice sessions yet.

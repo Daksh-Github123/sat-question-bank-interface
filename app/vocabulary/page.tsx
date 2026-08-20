@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { VocabularyItem } from "@/lib/types";
 import { listVocab, updateVocab, deleteVocab } from "@/lib/vocab";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/ToastProvider";
+import { PageLoader } from "@/components/ui/Spinner";
 
 type Sort = "recent" | "count" | "az";
 
@@ -15,6 +18,8 @@ function csvEscape(v: string): string {
 }
 
 export default function VocabularyPage() {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [items, setItems] = useState<VocabularyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState<Sort>("recent");
@@ -54,9 +59,11 @@ export default function VocabularyPage() {
     );
   }
 
-  async function remove(id: string) {
+  async function remove(id: string, term: string) {
+    if (!(await confirm({ title: `Remove "${term}"?`, body: "This deletes the saved word from your vocabulary.", confirmLabel: "Remove", danger: true }))) return;
     await deleteVocab(id);
     setItems((prev) => prev.filter((it) => it.id !== id));
+    toast.success(`Removed "${term}".`);
   }
 
   function download(filename: string, content: string, type: string) {
@@ -123,7 +130,7 @@ export default function VocabularyPage() {
       </p>
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
+        <PageLoader label="Loading vocabulary…" />
       ) : sorted.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
           No saved words yet. While reviewing an answered question, highlight a word or phrase to add it here.
@@ -147,7 +154,7 @@ export default function VocabularyPage() {
                       Edit
                     </button>
                   )}
-                  <button onClick={() => remove(it.id)} className="text-slate-400 dark:text-slate-500 hover:text-rose-600">
+                  <button onClick={() => remove(it.id, it.term)} className="text-slate-400 dark:text-slate-500 hover:text-rose-600">
                     Delete
                   </button>
                 </div>

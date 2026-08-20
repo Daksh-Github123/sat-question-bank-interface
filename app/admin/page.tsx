@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useUser } from "@/lib/userContext";
 import { listReports, deleteReport, type QuestionReport } from "@/lib/reports";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/ToastProvider";
+import { PageLoader } from "@/components/ui/Spinner";
 
 interface Row {
   id: string;
@@ -30,6 +33,8 @@ function timeAgo(iso: string | null) {
 
 export default function AdminPage() {
   const { user } = useUser();
+  const confirm = useConfirm();
+  const toast = useToast();
   const [users, setUsers] = useState<Row[]>([]);
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [reports, setReports] = useState<QuestionReport[]>([]);
@@ -63,8 +68,10 @@ export default function AdminPage() {
   }
 
   async function resolveReport(id: string) {
+    if (!(await confirm({ title: "Resolve this report?", body: "It will be removed from the list.", confirmLabel: "Resolve" }))) return;
     await deleteReport(id);
-    load();
+    await load();
+    toast.success("Report resolved.");
   }
 
   useEffect(() => {
@@ -100,14 +107,22 @@ export default function AdminPage() {
     }
     setNewName("");
     setMakeAdmin(false);
-    load();
+    await load();
+    toast.success(`Account "${uname}" created.`);
   }
 
   async function removeUser(id: string, uname: string) {
     if (id === user?.id) return; // don't delete yourself
-    if (!confirm(`Delete account "${uname}"? This erases all of their practice history.`)) return;
+    const ok = await confirm({
+      title: `Delete account "${uname}"?`,
+      body: "This erases all of their practice history and cannot be undone.",
+      confirmLabel: "Delete account",
+      danger: true,
+    });
+    if (!ok) return;
     await supabase.from("users").delete().eq("id", id);
-    load();
+    await load();
+    toast.success(`Account "${uname}" deleted.`);
   }
 
   return (
@@ -144,7 +159,7 @@ export default function AdminPage() {
       <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Accounts</h2>
         {loading ? (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
+          <PageLoader label="Loading accounts…" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

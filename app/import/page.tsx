@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { ParsedQuestion } from "@/lib/types";
 import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { useUser } from "@/lib/userContext";
+import { useToast } from "@/components/ui/ToastProvider";
 
 interface FileResult {
   name: string;
@@ -16,6 +17,7 @@ interface FileResult {
 
 export default function ImportPage() {
   const { user } = useUser();
+  const toast = useToast();
   const [results, setResults] = useState<FileResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>("");
@@ -98,18 +100,22 @@ export default function ImportPage() {
     const err1 = await upsertChunks(normalRows);
     if (err1) {
       setStatus(`Error saving: ${err1}`);
+      toast.error(`Error saving: ${err1}`);
       setBusy(false);
       return;
     }
     const err2 = await upsertChunks(graphicRows);
     if (err2) {
       setStatus(`Error saving: ${err2}`);
+      toast.error(`Error saving: ${err2}`);
       setBusy(false);
       return;
     }
-    setSaved(normalRows.length + graphicRows.length);
+    const total = normalRows.length + graphicRows.length;
+    setSaved(total);
     setStatus("");
     setBusy(false);
+    toast.success(`Saved ${total} question${total === 1 ? "" : "s"} to the bank.`);
   }
 
   // Group parsed questions by skill for a quick summary.

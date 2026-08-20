@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { currentUserId } from "@/lib/user";
 import { listVocab, sentenceFor } from "@/lib/vocab";
+import CopyButton from "@/components/ui/CopyButton";
 
 interface SessionOpt {
   id: string;
@@ -87,7 +88,6 @@ export default function ReportsPage() {
   const [end, setEnd] = useState(iso(today));
   const [report, setReport] = useState("");
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [scope, setScope] = useState<"range" | "session">("range");
   const [sessions, setSessions] = useState<SessionOpt[]>([]);
@@ -134,7 +134,6 @@ export default function ReportsPage() {
   async function generate() {
     setBusy(true);
     setReport("");
-    setCopied(false);
     const uid = currentUserId();
     let query = supabase
       .from("attempts")
@@ -360,13 +359,6 @@ export default function ReportsPage() {
     setBusy(false);
   }
 
-  async function copyReport() {
-    try {
-      await navigator.clipboard.writeText(report);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {}
-  }
 
   // ---- Vocabulary report ----
   interface VocabRow {
@@ -380,12 +372,10 @@ export default function ReportsPage() {
   const [vocabReport, setVocabReport] = useState("");
   const [vocabRows, setVocabRows] = useState<VocabRow[]>([]);
   const [vocabBusy, setVocabBusy] = useState(false);
-  const [vocabCopied, setVocabCopied] = useState(false);
 
   async function generateVocab() {
     setVocabBusy(true);
     setVocabReport("");
-    setVocabCopied(false);
     const items = await listVocab();
     if (items.length === 0) {
       setVocabRows([]);
@@ -441,13 +431,6 @@ export default function ReportsPage() {
     setVocabBusy(false);
   }
 
-  async function copyVocab() {
-    try {
-      await navigator.clipboard.writeText(vocabReport);
-      setVocabCopied(true);
-      setTimeout(() => setVocabCopied(false), 1500);
-    } catch {}
-  }
 
   function downloadVocabCsv() {
     if (vocabRows.length === 0) return;
@@ -652,9 +635,11 @@ export default function ReportsPage() {
         {report && (
           <div className="mt-4">
             <div className="mb-2 flex justify-end">
-              <button onClick={copyReport} className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-                {copied ? "Copied!" : "Copy report"}
-              </button>
+              <CopyButton
+                text={report}
+                label="Copy report"
+                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              />
             </div>
             <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-4 text-xs text-slate-700 dark:text-slate-200">{report}</pre>
           </div>
@@ -687,9 +672,11 @@ export default function ReportsPage() {
         {vocabReport && (
           <div className="mt-4">
             <div className="mb-2 flex justify-end">
-              <button onClick={copyVocab} className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
-                {vocabCopied ? "Copied!" : "Copy report"}
-              </button>
+              <CopyButton
+                text={vocabReport}
+                label="Copy report"
+                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              />
             </div>
             <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-4 text-xs text-slate-700 dark:text-slate-200">{vocabReport}</pre>
           </div>

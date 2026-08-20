@@ -7,6 +7,7 @@ import type { Question } from "@/lib/types";
 import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { currentUserId } from "@/lib/user";
 import QuestionText from "@/components/QuestionText";
+import { PageLoader } from "@/components/ui/Spinner";
 
 type Status = "attempted" | "unattempted" | "wrong" | "correct" | "guessed" | "flagged";
 
@@ -98,7 +99,7 @@ function BrowseInner() {
     return true;
   });
 
-  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading question bank…</p>;
+  if (loading) return <PageLoader label="Loading question bank…" />;
 
   return (
     <div className="space-y-5">

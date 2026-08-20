@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { currentUserId } from "@/lib/user";
+import { PageLoader } from "@/components/ui/Spinner";
 
 interface UserRow {
   id: string;
@@ -115,7 +116,7 @@ export default function LeaderboardPage() {
     return rows;
   }, [entries, sort]);
 
-  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading leaderboard…</p>;
+  if (loading) return <PageLoader label="Loading leaderboard…" />;
 
   const th = (key: SortKey, label: string) => (
     <button

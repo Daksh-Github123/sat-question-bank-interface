@@ -12,6 +12,7 @@ import {
   loadSessionQuestions,
   completeSession,
 } from "@/lib/practice";
+import { PageLoader } from "@/components/ui/Spinner";
 
 interface ActiveSession {
   questions: Question[];
@@ -123,8 +124,8 @@ export default function PracticePage() {
     setResumable(null);
   }
 
-  if (phase === "checking") return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
-  if (phase === "loading") return <p className="text-sm text-slate-500 dark:text-slate-400">Preparing questions…</p>;
+  if (phase === "checking") return <PageLoader label="Loading…" />;
+  if (phase === "loading") return <PageLoader label="Preparing questions…" />;
 
   if (phase === "active" && session) {
     return (
