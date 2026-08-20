@@ -115,12 +115,12 @@ export default function LeaderboardPage() {
     return rows;
   }, [entries, sort]);
 
-  if (loading) return <p className="text-sm text-slate-500">Loading leaderboard…</p>;
+  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading leaderboard…</p>;
 
   const th = (key: SortKey, label: string) => (
     <button
       onClick={() => setSort(key)}
-      className={`font-medium ${sort === key ? "text-brand-700" : "text-slate-500 hover:text-slate-700"}`}
+      className={`font-medium ${sort === key ? "text-brand-700 dark:text-brand-300" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
     >
       {label} {sort === key ? "↓" : ""}
     </button>
@@ -130,20 +130,20 @@ export default function LeaderboardPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">🏆 Leaderboard</h1>
-        <span className="text-sm text-slate-500">{ranked.length} {ranked.length === 1 ? "player" : "players"}</span>
+        <span className="text-sm text-slate-500 dark:text-slate-400">{ranked.length} {ranked.length === 1 ? "player" : "players"}</span>
       </div>
 
       {ranked.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
           No one has practiced yet — be the first!
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide">
+            <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-left text-xs uppercase tracking-wide">
               <tr>
-                <th className="px-3 py-2 font-medium text-slate-500">#</th>
-                <th className="px-3 py-2 font-medium text-slate-500">Player</th>
+                <th className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">#</th>
+                <th className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">Player</th>
                 <th className="px-3 py-2">{th("questions", "Questions")}</th>
                 <th className="px-3 py-2">{th("accuracy", "Accuracy")}</th>
                 <th className="px-3 py-2">{th("time", "Time")}</th>
@@ -156,25 +156,25 @@ export default function LeaderboardPage() {
                 return (
                   <tr
                     key={e.id}
-                    className={`border-b border-slate-100 last:border-0 ${mine ? "bg-brand-50/60" : ""}`}
+                    className={`border-b border-slate-100 last:border-0 ${mine ? "bg-brand-50 dark:bg-brand-950/60" : ""}`}
                   >
-                    <td className="px-3 py-2 text-center font-semibold text-slate-600">{medal}</td>
-                    <td className="px-3 py-2 font-medium text-slate-800">
+                    <td className="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300">{medal}</td>
+                    <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
                       {e.name}
-                      {mine && <span className="ml-2 text-xs font-normal text-brand-600">you</span>}
+                      {mine && <span className="ml-2 text-xs font-normal text-brand-600 dark:text-brand-300">you</span>}
                     </td>
-                    <td className="px-3 py-2 text-slate-600">{e.questions}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{e.questions}</td>
                     <td className="px-3 py-2">
                       <span
                         className={`font-semibold ${
-                          e.accuracy >= 85 ? "text-emerald-700" : e.accuracy >= 70 ? "text-amber-700" : "text-rose-700"
+                          e.accuracy >= 85 ? "text-emerald-700 dark:text-emerald-300" : e.accuracy >= 70 ? "text-amber-700 dark:text-amber-300" : "text-rose-700 dark:text-rose-300"
                         }`}
                       >
                         {e.accuracy}%
                       </span>
-                      <span className="ml-1 text-xs text-slate-400">({e.correct}/{e.questions})</span>
+                      <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">({e.correct}/{e.questions})</span>
                     </td>
-                    <td className="px-3 py-2 text-slate-500">{fmtTime(e.seconds)}</td>
+                    <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{fmtTime(e.seconds)}</td>
                   </tr>
                 );
               })}
@@ -182,7 +182,7 @@ export default function LeaderboardPage() {
           </table>
         </div>
       )}
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-400 dark:text-slate-500">
         Tap a column to re-rank. Time is total practice time (including answer review). Accuracy ties
         break toward whoever has answered more questions.
       </p>

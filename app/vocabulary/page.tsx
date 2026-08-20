@@ -88,12 +88,12 @@ export default function VocabularyPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Vocabulary</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs text-slate-500">
+          <label className="text-xs text-slate-500 dark:text-slate-400">
             Sort
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as Sort)}
-              className="ml-2 rounded-md border border-slate-300 px-2 py-1 text-sm"
+              className="ml-2 rounded-md border border-slate-300 dark:border-slate-700 px-2 py-1 text-sm"
             >
               <option value="recent">Most recent</option>
               <option value="count">Most saved</option>
@@ -103,51 +103,51 @@ export default function VocabularyPage() {
           <button
             onClick={exportCsv}
             disabled={!items.length}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
           >
             Export CSV
           </button>
           <button
             onClick={exportJson}
             disabled={!items.length}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
           >
             Export JSON
           </button>
         </div>
       </div>
 
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         Words and phrases you highlighted while practicing. Meanings are looked up automatically where
         possible — edit any entry to fill in or refine it.
       </p>
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>
       ) : sorted.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-500 dark:text-slate-400">
           No saved words yet. While reviewing an answered question, highlight a word or phrase to add it here.
         </div>
       ) : (
         <div className="space-y-3">
           {sorted.map((it) => (
-            <div key={it.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div key={it.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-semibold text-slate-800">{it.term}</span>
+                  <span className="text-base font-semibold text-slate-800 dark:text-slate-100">{it.term}</span>
                   {it.count > 1 && (
-                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                    <span className="rounded-full bg-brand-50 dark:bg-brand-950 px-2 py-0.5 text-xs font-medium text-brand-700 dark:text-brand-300">
                       ×{it.count}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-xs">
                   {editing !== it.id && (
-                    <button onClick={() => startEdit(it)} className="text-brand-600 hover:underline">
+                    <button onClick={() => startEdit(it)} className="text-brand-600 dark:text-brand-300 hover:underline">
                       Edit
                     </button>
                   )}
-                  <button onClick={() => remove(it.id)} className="text-slate-400 hover:text-rose-600">
+                  <button onClick={() => remove(it.id)} className="text-slate-400 dark:text-slate-500 hover:text-rose-600">
                     Delete
                   </button>
                 </div>
@@ -159,24 +159,24 @@ export default function VocabularyPage() {
                     value={defDraft}
                     onChange={(e) => setDefDraft(e.target.value)}
                     placeholder="Meaning"
-                    className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm"
                   />
                   <input
                     value={exDraft}
                     onChange={(e) => setExDraft(e.target.value)}
                     placeholder="Example / usage"
-                    className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm"
                   />
                   <div className="flex gap-2">
                     <button
                       onClick={() => saveEdit(it.id)}
-                      className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700"
+                      className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600"
                     >
                       Save
                     </button>
                     <button
                       onClick={() => setEditing(null)}
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       Cancel
                     </button>
@@ -184,10 +184,10 @@ export default function VocabularyPage() {
                 </div>
               ) : (
                 <div className="mt-2 space-y-1">
-                  <p className="text-sm text-slate-700">
-                    {it.definition || <span className="italic text-slate-400">No meaning yet — click Edit to add one.</span>}
+                  <p className="text-sm text-slate-700 dark:text-slate-200">
+                    {it.definition || <span className="italic text-slate-400 dark:text-slate-500">No meaning yet — click Edit to add one.</span>}
                   </p>
-                  {it.example && <p className="text-sm italic text-slate-500">“{it.example}”</p>}
+                  {it.example && <p className="text-sm italic text-slate-500 dark:text-slate-400">“{it.example}”</p>}
                 </div>
               )}
             </div>

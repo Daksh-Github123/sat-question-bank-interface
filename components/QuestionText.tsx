@@ -133,27 +133,27 @@ export default function QuestionText({
       <div className="space-y-3">
         {intro && <p className={p}>{intro}</p>}
         {/* Text 1 — indigo accent */}
-        <div className="rounded-lg border border-brand-100 border-l-4 border-l-brand-500 bg-brand-50/50 p-4">
+        <div className="rounded-lg border border-brand-100 border-l-4 border-l-brand-500 bg-brand-50 dark:bg-brand-950/50 p-4">
           <span className="mb-2 inline-block rounded bg-brand-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
             Text 1
           </span>
           <p className={p}>{renderPassage(t1, ulTarget === 1)}</p>
         </div>
         {/* Explicit divide between the two passages */}
-        <div className="flex items-center gap-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="flex items-center gap-3 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
           <span className="h-px flex-1 bg-slate-200" />
           compared with
           <span className="h-px flex-1 bg-slate-200" />
         </div>
         {/* Text 2 — teal accent */}
-        <div className="rounded-lg border border-teal-200 border-l-4 border-l-teal-500 bg-teal-50/50 p-4">
+        <div className="rounded-lg border border-teal-200 border-l-4 border-l-teal-500 bg-teal-50 dark:bg-teal-950/50 p-4">
           <span className="mb-2 inline-block rounded bg-teal-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
             Text 2
           </span>
           <p className={p}>{renderPassage(t2, ulTarget === 2)}</p>
         </div>
         {prompt && (
-          <p className={`${p} border-t border-slate-200 pt-3 font-medium text-slate-800`}>
+          <p className={`${p} border-t border-slate-200 dark:border-slate-800 pt-3 font-medium text-slate-800 dark:text-slate-100`}>
             {hasSpans ? withRanges(prompt, underlineRanges(prompt, underlineSpans)) : prompt}
           </p>
         )}

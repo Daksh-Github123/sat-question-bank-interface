@@ -13,7 +13,7 @@ export interface TrendPoint {
  */
 export default function AccuracyTrend({ points }: { points: TrendPoint[] }) {
   if (points.length === 0) {
-    return <p className="text-sm text-slate-400">Not enough data yet — practice on a few different days to see your trend.</p>;
+    return <p className="text-sm text-slate-400 dark:text-slate-500">Not enough data yet — practice on a few different days to see your trend.</p>;
   }
 
   const W = 640;

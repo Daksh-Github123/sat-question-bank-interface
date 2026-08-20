@@ -123,8 +123,8 @@ export default function PracticePage() {
     setResumable(null);
   }
 
-  if (phase === "checking") return <p className="text-sm text-slate-500">Loading…</p>;
-  if (phase === "loading") return <p className="text-sm text-slate-500">Preparing questions…</p>;
+  if (phase === "checking") return <p className="text-sm text-slate-500 dark:text-slate-400">Loading…</p>;
+  if (phase === "loading") return <p className="text-sm text-slate-500 dark:text-slate-400">Preparing questions…</p>;
 
   if (phase === "active" && session) {
     return (
@@ -153,12 +153,12 @@ export default function PracticePage() {
 
   return (
     <div>
-      {error && <p className="mb-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {error && <p className="mb-4 rounded-md bg-rose-50 dark:bg-rose-950 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">{error}</p>}
       {resumable && (
-        <div className="mb-6 flex items-center justify-between rounded-lg border border-brand-200 bg-brand-50 p-4">
+        <div className="mb-6 flex items-center justify-between rounded-lg border border-brand-200 dark:border-brand-800 bg-brand-50 dark:bg-brand-950 p-4">
           <div>
-            <p className="text-sm font-semibold text-brand-800">You have a paused session</p>
-            <p className="text-xs text-brand-600">
+            <p className="text-sm font-semibold text-brand-800 dark:text-brand-200">You have a paused session</p>
+            <p className="text-xs text-brand-600 dark:text-brand-300">
               {resumable.current_index} of {resumable.question_ids.length} done — pick up where you
               left off.
             </p>
@@ -166,13 +166,13 @@ export default function PracticePage() {
           <div className="flex gap-2">
             <button
               onClick={discardResumable}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               Discard
             </button>
             <button
               onClick={() => resume(resumable)}
-              className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
+              className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600"
             >
               Resume
             </button>

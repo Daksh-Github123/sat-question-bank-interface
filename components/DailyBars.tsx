@@ -24,7 +24,7 @@ export default function DailyBars({
   const [hover, setHover] = useState<number | null>(null);
 
   if (bars.length === 0) {
-    return <p className="text-sm text-slate-400">No activity yet.</p>;
+    return <p className="text-sm text-slate-400 dark:text-slate-500">No activity yet.</p>;
   }
   const W = 600;
   const H = 150;

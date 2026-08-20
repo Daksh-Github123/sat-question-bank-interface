@@ -358,23 +358,23 @@ export default function PracticeSession({
   // from the per-question / module timer.
   const sessionTimerBar = (
     <div>
-      <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
+      <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs text-slate-500 dark:text-slate-400">
         <span>⏱ Session total</span>
         {hideSessionTimer ? (
           <button
             onClick={() => toggleHideSessionTimer(false)}
-            className="font-medium text-slate-400 hover:text-slate-600"
+            className="font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600"
           >
             show
           </button>
         ) : (
           <>
-            <span className="font-mono text-sm font-semibold text-slate-700">{fmt(sessionSeconds)}</span>
+            <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-200">{fmt(sessionSeconds)}</span>
             <button
               onClick={() => toggleHideSessionTimer(true)}
               title="Hide the session timer"
               aria-label="Hide the session timer"
-              className="text-slate-400 hover:text-slate-600"
+              className="text-slate-400 dark:text-slate-500 hover:text-slate-600"
             >
               🙈
             </button>
@@ -398,18 +398,18 @@ export default function PracticeSession({
         {sessionTimerBar}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-500">
+            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
               Reviewing {reviewIndex + 1} of {questions.length}
             </span>
             <span className={`rounded border px-2 py-0.5 text-xs ${DIFFICULTY_COLORS[rq.difficulty] || ""}`}>
               {rq.difficulty}
             </span>
-            <span className="hidden text-xs text-slate-400 sm:inline">{rq.skill}</span>
+            <span className="hidden text-xs text-slate-400 dark:text-slate-500 sm:inline">{rq.skill}</span>
           </div>
           {rec && (
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                rec.correct ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                rec.correct ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300" : "bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300"
               }`}
             >
               {rec.correct ? "✓ Correct" : "✗ Missed"}
@@ -417,29 +417,29 @@ export default function PracticeSession({
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
           <VocabCapture enabled onSave={(t) => addVocab(rq, t)}>
             {rq.graph_url && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={rq.graph_url} alt="Question graphic" className="mb-4 max-w-full rounded-lg border border-slate-200" />
+              <img src={rq.graph_url} alt="Question graphic" className="mb-4 max-w-full rounded-lg border border-slate-200 dark:border-slate-800" />
             )}
-            <QuestionText text={rq.question_text} underlineSpans={rq.underline_spans} className="text-[15px] leading-relaxed text-slate-800" />
+            <QuestionText text={rq.question_text} underlineSpans={rq.underline_spans} className="text-[15px] leading-relaxed text-slate-800 dark:text-slate-100" />
             <div className="mt-5 space-y-2">
               {rq.choices ? (
                 rq.choices.map((c) => {
                   const isCorrect = c.letter === rq.correct_answer;
                   const isChosen = c.letter === sel;
-                  let cls = "border-slate-200 opacity-70";
-                  if (isCorrect) cls = "border-emerald-400 bg-emerald-50";
-                  else if (isChosen) cls = "border-rose-400 bg-rose-50";
+                  let cls = "border-slate-200 dark:border-slate-800 opacity-70";
+                  if (isCorrect) cls = "border-emerald-400 bg-emerald-50 dark:bg-emerald-950";
+                  else if (isChosen) cls = "border-rose-400 bg-rose-50 dark:bg-rose-950";
                   return (
                     <div key={c.letter} className={`flex items-start gap-3 rounded-lg border p-3 text-sm select-text ${cls}`}>
                       <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full border border-current text-xs font-semibold">
                         {c.letter}
                       </span>
-                      <span className="select-text text-slate-700">{c.text}</span>
-                      {isCorrect && <span className="ml-auto text-emerald-600">✓</span>}
-                      {isChosen && !isCorrect && <span className="ml-auto text-rose-600">✗</span>}
+                      <span className="select-text text-slate-700 dark:text-slate-200">{c.text}</span>
+                      {isCorrect && <span className="ml-auto text-emerald-600 dark:text-emerald-300">✓</span>}
+                      {isChosen && !isCorrect && <span className="ml-auto text-rose-600 dark:text-rose-400">✗</span>}
                     </div>
                   );
                 })
@@ -447,42 +447,42 @@ export default function PracticeSession({
                 <div className="space-y-1 text-sm">
                   <p>
                     Your answer:{" "}
-                    <span className={`font-semibold ${rec?.correct ? "text-emerald-700" : "text-rose-700"}`}>{sel || "—"}</span>
+                    <span className={`font-semibold ${rec?.correct ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>{sel || "—"}</span>
                   </p>
                   <p>
-                    Correct answer: <span className="font-semibold text-emerald-700">{rq.correct_answer}</span>
+                    Correct answer: <span className="font-semibold text-emerald-700 dark:text-emerald-300">{rq.correct_answer}</span>
                   </p>
                 </div>
               )}
             </div>
           </VocabCapture>
           {rq.rationale && (
-            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Explanation</p>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{rq.rationale}</p>
+            <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-4">
+              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Explanation</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-200">{rq.rationale}</p>
             </div>
           )}
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
             Tip: highlight any word or phrase to save it to your vocabulary.
           </p>
         </div>
 
         <div className="flex items-center justify-between">
-          <button onClick={() => setPhase(returnPhase)} className="text-sm text-slate-500 hover:text-slate-700">
+          <button onClick={() => setPhase(returnPhase)} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
             ← Back to summary
           </button>
           <div className="flex gap-2">
             <button
               onClick={() => setReviewIndex((i) => Math.max(0, i - 1))}
               disabled={reviewIndex === 0}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+              className="rounded-md border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40"
             >
               ← Prev
             </button>
             <button
               onClick={() => setReviewIndex((i) => Math.min(questions.length - 1, i + 1))}
               disabled={reviewIndex === questions.length - 1}
-              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
+              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-40"
             >
               Next →
             </button>
@@ -497,11 +497,11 @@ export default function PracticeSession({
     const flaggedList = questions.filter((x) => flags.has(x.id));
     return (
       <div className="space-y-5">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950 p-5 text-center">
           <p className="text-lg font-bold text-emerald-800">
             Session complete — {correctCount}/{answeredCount} correct
           </p>
-          <p className="mt-1 text-sm text-emerald-700">
+          <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
             {answeredCount ? Math.round((correctCount / answeredCount) * 100) : 0}% · {fmt(totalTime)} total ·{" "}
             {answeredCount ? Math.round(totalTime / answeredCount) : 0}s avg
           </p>
@@ -514,43 +514,43 @@ export default function PracticeSession({
                 setReviewIndex(0);
                 setPhase("review");
               }}
-              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600"
             >
               🔁 Review my answers
             </button>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
               Go through every question with your answers, the correct answers, and explanations — and save vocabulary.
             </p>
           </div>
         )}
 
         {phase === "flagged" && flaggedList.length > 0 && (
-          <div className="rounded-xl border border-amber-200 bg-white p-5">
-            <p className="mb-3 text-sm font-semibold text-amber-700">
+          <div className="rounded-xl border border-amber-200 bg-white dark:bg-slate-900 p-5">
+            <p className="mb-3 text-sm font-semibold text-amber-700 dark:text-amber-300">
               🚩 {flaggedList.length} flagged question{flaggedList.length === 1 ? "" : "s"} to revisit
             </p>
             <div className="space-y-3">
               {flaggedList.map((fq) => {
                 const rec = answers.find((a) => a.question.id === fq.id);
                 return (
-                  <div key={fq.id} className="rounded-lg border border-slate-200 p-3">
+                  <div key={fq.id} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
                     <div className="mb-1 flex items-center gap-2 text-xs">
                       <span className={`rounded border px-1.5 py-0.5 ${DIFFICULTY_COLORS[fq.difficulty] || ""}`}>
                         {fq.difficulty}
                       </span>
-                      <span className="text-slate-500">{fq.skill}</span>
+                      <span className="text-slate-500 dark:text-slate-400">{fq.skill}</span>
                       {rec && (
-                        <span className={rec.correct ? "text-emerald-600" : "text-rose-600"}>
+                        <span className={rec.correct ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-400"}>
                           {rec.correct ? "✓ correct" : "✗ missed"}
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-700">{fq.question_text}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-200">{fq.question_text}</p>
                     <p className="mt-1 text-sm">
-                      Correct answer: <span className="font-semibold text-emerald-700">{fq.correct_answer}</span>
+                      Correct answer: <span className="font-semibold text-emerald-700 dark:text-emerald-300">{fq.correct_answer}</span>
                     </p>
                     {fq.rationale && (
-                      <p className="mt-1 text-xs text-slate-500">{fq.rationale}</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{fq.rationale}</p>
                     )}
                   </div>
                 );
@@ -560,10 +560,10 @@ export default function PracticeSession({
         )}
 
         <div className="flex justify-end gap-3">
-          <a href="/review" className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <a href="/review" className="rounded-md border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
             Review mistakes
           </a>
-          <button onClick={handleExit} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+          <button onClick={handleExit} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600">
             Done
           </button>
         </div>
@@ -579,9 +579,9 @@ export default function PracticeSession({
   if (mode === "module" && totalSeconds) {
     const expectedDone = (moduleElapsed / totalSeconds) * questions.length;
     const diff = answeredCount - expectedDone;
-    if (diff >= 0.5) pacing = { label: `Ahead by ${Math.round(diff)}`, cls: "text-emerald-600" };
-    else if (diff <= -0.5) pacing = { label: `Behind by ${Math.round(-diff)}`, cls: "text-rose-600" };
-    else pacing = { label: "On pace", cls: "text-slate-500" };
+    if (diff >= 0.5) pacing = { label: `Ahead by ${Math.round(diff)}`, cls: "text-emerald-600 dark:text-emerald-300" };
+    else if (diff <= -0.5) pacing = { label: `Behind by ${Math.round(-diff)}`, cls: "text-rose-600 dark:text-rose-400" };
+    else pacing = { label: "On pace", cls: "text-slate-500 dark:text-slate-400" };
   }
 
   // Tag gating: if enabled, require a confidence tag (and a miss-reason when the
@@ -597,7 +597,7 @@ export default function PracticeSession({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-slate-500">
+          <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
             Question {index + 1} of {questions.length}
           </span>
           {/* Difficulty is hidden until the question is answered, to avoid biasing you. */}
@@ -606,7 +606,7 @@ export default function PracticeSession({
               {q.difficulty}
             </span>
           )}
-          <span className="hidden text-xs text-slate-400 sm:inline">{q.skill}</span>
+          <span className="hidden text-xs text-slate-400 dark:text-slate-500 sm:inline">{q.skill}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -614,7 +614,7 @@ export default function PracticeSession({
             title="Report an issue with this question"
             aria-label="Report an issue with this question"
             className={`rounded-md border px-2 py-1 text-sm ${
-              reportOpen ? "border-rose-300 bg-rose-50 text-rose-600" : "border-slate-300 text-slate-400 hover:text-slate-600"
+              reportOpen ? "border-rose-300 bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400" : "border-slate-300 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:text-slate-600"
             }`}
           >
             ⚠
@@ -623,7 +623,7 @@ export default function PracticeSession({
             onClick={toggleFlag}
             title="Flag to revisit"
             className={`rounded-md border px-2 py-1 text-sm ${
-              flagged ? "border-amber-400 bg-amber-50 text-amber-700" : "border-slate-300 text-slate-400 hover:text-slate-600"
+              flagged ? "border-amber-400 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300" : "border-slate-300 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:text-slate-600"
             }`}
           >
             🚩 {flagged ? "Flagged" : "Flag"}
@@ -633,7 +633,7 @@ export default function PracticeSession({
               onClick={paused ? resumeClock : pauseClock}
               title={paused ? "Resume the clock" : "Pause the clock"}
               className={`rounded-md border px-2 py-1 text-sm ${
-                paused ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-300 text-slate-500 hover:text-slate-700"
+                paused ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300" : "border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               }`}
             >
               {paused ? "▶ Resume" : "⏸ Pause"}
@@ -642,12 +642,12 @@ export default function PracticeSession({
           {mode === "module" ? (
             <div className="flex items-center gap-2">
               {pacing && <span className={`text-xs font-medium ${pacing.cls}`}>{pacing.label}</span>}
-              <span className={`rounded-md px-3 py-1 font-mono text-lg font-semibold ${moduleRemaining <= 60 ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-700"}`}>
+              <span className={`rounded-md px-3 py-1 font-mono text-lg font-semibold ${moduleRemaining <= 60 ? "bg-rose-100 text-rose-700 dark:text-rose-300" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"}`}>
                 {fmt(moduleRemaining)}
               </span>
             </div>
           ) : (
-            <span className={`rounded-md px-3 py-1 font-mono text-lg font-semibold ${mode === "timer" && perQRemaining <= 10 ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-700"}`}>
+            <span className={`rounded-md px-3 py-1 font-mono text-lg font-semibold ${mode === "timer" && perQRemaining <= 10 ? "bg-rose-100 text-rose-700 dark:text-rose-300" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"}`}>
               {mode === "timer" ? fmt(perQRemaining) : fmt(elapsed)}
             </span>
           )}
@@ -655,18 +655,18 @@ export default function PracticeSession({
       </div>
 
       {reportOpen && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50/60 p-3">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950/60 p-3">
           {reportSent ? (
-            <p className="text-sm font-medium text-rose-700">Thanks — your report was submitted. ✓</p>
+            <p className="text-sm font-medium text-rose-700 dark:text-rose-300">Thanks — your report was submitted. ✓</p>
           ) : (
             <>
-              <p className="mb-2 text-xs font-semibold text-rose-700">Report an issue with this question</p>
+              <p className="mb-2 text-xs font-semibold text-rose-700 dark:text-rose-300">Report an issue with this question</p>
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {["Wrong answer key", "Typo or formatting", "Missing/incorrect graphic", "Confusing wording"].map((c) => (
                   <button
                     key={c}
                     onClick={() => setReportText((t) => (t.trim() ? t : c))}
-                    className="rounded-full border border-rose-200 bg-white px-2.5 py-0.5 text-xs text-rose-600 hover:bg-rose-100"
+                    className="rounded-full border border-rose-200 bg-white dark:bg-slate-900 px-2.5 py-0.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-100"
                   >
                     {c}
                   </button>
@@ -677,12 +677,12 @@ export default function PracticeSession({
                 onChange={(e) => setReportText(e.target.value)}
                 placeholder="What's wrong with this question?"
                 rows={2}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
               <div className="mt-2 flex justify-end gap-2">
                 <button
                   onClick={() => setReportOpen(false)}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
@@ -704,17 +704,17 @@ export default function PracticeSession({
       </div>
 
       {/* Question */}
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
         {paused ? (
           <div className="py-12 text-center">
             <p className="text-2xl">⏸</p>
-            <p className="mt-2 text-lg font-semibold text-slate-700">Paused</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-2 text-lg font-semibold text-slate-700 dark:text-slate-200">Paused</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               The clock is stopped — this break won&apos;t count toward your time.
             </p>
             <button
               onClick={resumeClock}
-              className="mt-4 rounded-md bg-brand-600 px-6 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+              className="mt-4 rounded-md bg-brand-600 px-6 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600"
             >
               ▶ Resume
             </button>
@@ -726,10 +726,10 @@ export default function PracticeSession({
           <img
             src={q.graph_url}
             alt="Question graphic"
-            className="mb-4 max-w-full rounded-lg border border-slate-200"
+            className="mb-4 max-w-full rounded-lg border border-slate-200 dark:border-slate-800"
           />
         )}
-        <QuestionText text={q.question_text} underlineSpans={q.underline_spans} className="text-[15px] leading-relaxed text-slate-800" />
+        <QuestionText text={q.question_text} underlineSpans={q.underline_spans} className="text-[15px] leading-relaxed text-slate-800 dark:text-slate-100" />
 
         <div className="mt-5 space-y-2">
           {q.choices ? (
@@ -738,12 +738,12 @@ export default function PracticeSession({
               const isChosen = c.letter === selected;
               const isCrossed = crossed.has(c.letter);
               const dim = isCrossed && !revealed;
-              let cls = "border-slate-200 hover:border-brand-400";
+              let cls = "border-slate-200 dark:border-slate-800 hover:border-brand-400";
               if (revealed) {
-                if (isCorrect) cls = "border-emerald-400 bg-emerald-50";
-                else if (isChosen) cls = "border-rose-400 bg-rose-50";
-                else cls = "border-slate-200 opacity-70";
-              } else if (isChosen) cls = "border-brand-500 bg-brand-50";
+                if (isCorrect) cls = "border-emerald-400 bg-emerald-50 dark:bg-emerald-950";
+                else if (isChosen) cls = "border-rose-400 bg-rose-50 dark:bg-rose-950";
+                else cls = "border-slate-200 dark:border-slate-800 opacity-70";
+              } else if (isChosen) cls = "border-brand-500 bg-brand-50 dark:bg-brand-950";
               return (
                 <div
                   key={c.letter}
@@ -756,9 +756,9 @@ export default function PracticeSession({
                       <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full border border-current text-xs font-semibold">
                         {c.letter}
                       </span>
-                      <span className="select-text text-slate-700">{c.text}</span>
-                      {isCorrect && <span className="ml-auto text-emerald-600">✓</span>}
-                      {isChosen && !isCorrect && <span className="ml-auto text-rose-600">✗</span>}
+                      <span className="select-text text-slate-700 dark:text-slate-200">{c.text}</span>
+                      {isCorrect && <span className="ml-auto text-emerald-600 dark:text-emerald-300">✓</span>}
+                      {isChosen && !isCorrect && <span className="ml-auto text-rose-600 dark:text-rose-400">✗</span>}
                     </div>
                   ) : (
                     <>
@@ -772,13 +772,13 @@ export default function PracticeSession({
                         >
                           {c.letter}
                         </span>
-                        <span className={`text-slate-700 ${dim ? "line-through opacity-40" : ""}`}>{c.text}</span>
+                        <span className={`text-slate-700 dark:text-slate-200 ${dim ? "line-through opacity-40" : ""}`}>{c.text}</span>
                       </button>
                       <button
                         onClick={() => toggleCross(c.letter)}
                         title={isCrossed ? "Undo cross out" : "Cross out this option"}
                         aria-label={isCrossed ? `Undo cross out ${c.letter}` : `Cross out ${c.letter}`}
-                        className="flex-none border-l border-slate-200 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                        className="flex-none border-l border-slate-200 dark:border-slate-800 px-3 text-xs font-semibold text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200"
                       >
                         {isCrossed ? "undo" : <span className="line-through">{c.letter}</span>}
                       </button>
@@ -795,11 +795,11 @@ export default function PracticeSession({
                 value={selected ?? ""}
                 onChange={(e) => setSelected(e.target.value)}
                 placeholder="Type your answer"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
               />
               {revealed && (
                 <p className="mt-2 text-sm">
-                  Correct answer: <span className="font-semibold text-emerald-700">{q.correct_answer}</span>
+                  Correct answer: <span className="font-semibold text-emerald-700 dark:text-emerald-300">{q.correct_answer}</span>
                 </p>
               )}
             </div>
@@ -809,7 +809,7 @@ export default function PracticeSession({
         )}
 
         <div className="mt-5 flex items-center justify-between">
-          <button onClick={handleExit} className="text-sm text-slate-400 hover:text-slate-600">
+          <button onClick={handleExit} className="text-sm text-slate-400 dark:text-slate-500 hover:text-slate-600">
             Save &amp; exit
           </button>
           {revealed ? (
@@ -822,7 +822,7 @@ export default function PracticeSession({
               <button
                 onClick={next}
                 disabled={tagsIncomplete}
-                className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50"
               >
                 {isLast ? "Finish" : "Next question →"}
               </button>
@@ -831,7 +831,7 @@ export default function PracticeSession({
             <button
               onClick={moduleAdvance}
               disabled={selected === null || selected === ""}
-              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50"
             >
               {isLast ? "Finish module" : "Next question →"}
             </button>
@@ -839,7 +839,7 @@ export default function PracticeSession({
             <button
               onClick={submit}
               disabled={selected === null || selected === ""}
-              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+              className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50"
             >
               Submit
             </button>
@@ -850,13 +850,13 @@ export default function PracticeSession({
       {/* Post-answer: confidence, miss-reason, note, rationale */}
       {revealed && (
         <div className="space-y-3">
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
             Tip: highlight any word or phrase in the question above to save it to your vocabulary.
           </p>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-slate-500">How sure were you?</span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">How sure were you?</span>
                 {(["confident", "guessed"] as Confidence[]).map((c) => (
                   <button
                     key={c}
@@ -865,7 +865,7 @@ export default function PracticeSession({
                       updateAttempt({ confidence: c });
                     }}
                     className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                      confidence === c ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-300 text-slate-500"
+                      confidence === c ? "border-brand-500 bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300" : "border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400"
                     }`}
                   >
                     {c === "confident" ? "Confident" : "Guessed"}
@@ -875,7 +875,7 @@ export default function PracticeSession({
 
               {answers[answers.length - 1] && !answers[answers.length - 1].correct && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500">Why missed?</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Why missed?</span>
                   {(Object.keys(MISS_REASON_LABELS) as MissReason[]).map((r) => (
                     <button
                       key={r}
@@ -884,7 +884,7 @@ export default function PracticeSession({
                         updateAttempt({ miss_reason: r });
                       }}
                       className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                        missReason === r ? "border-rose-400 bg-rose-50 text-rose-700" : "border-slate-300 text-slate-500"
+                        missReason === r ? "border-rose-400 bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300" : "border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400"
                       }`}
                     >
                       {MISS_REASON_LABELS[r]}
@@ -897,7 +897,7 @@ export default function PracticeSession({
             {/* Note */}
             <div className="mt-3 border-t border-slate-100 pt-3">
               {!noteOpen ? (
-                <button onClick={() => setNoteOpen(true)} className="text-xs text-brand-600 hover:underline">
+                <button onClick={() => setNoteOpen(true)} className="text-xs text-brand-600 dark:text-brand-300 hover:underline">
                   {notes.get(q.id) ? `📝 Edit note: “${notes.get(q.id)}”` : "📝 Add a note"}
                 </button>
               ) : (
@@ -906,7 +906,7 @@ export default function PracticeSession({
                     value={noteDraft}
                     onChange={(e) => setNoteDraft(e.target.value)}
                     placeholder="Your takeaway for this question…"
-                    className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+                    className="flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm"
                   />
                   <button onClick={saveNote} className="rounded-md bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white">
                     Save
@@ -917,9 +917,9 @@ export default function PracticeSession({
           </div>
 
           {q.rationale && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Explanation</p>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{q.rationale}</p>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-5">
+              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Explanation</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-200">{q.rationale}</p>
             </div>
           )}
         </div>

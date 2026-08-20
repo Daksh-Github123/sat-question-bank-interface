@@ -302,7 +302,7 @@ export default function DashboardPage() {
     return list;
   }, [skillStats, tab, sort]);
 
-  if (loading) return <p className="text-sm text-slate-500">Loading your statistics…</p>;
+  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading your statistics…</p>;
 
   const tabs = ["All", ...presentTests];
 
@@ -310,7 +310,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Link href="/practice" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">New session</Link>
+        <Link href="/practice" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600">New session</Link>
       </div>
 
       {/* Tiles */}
@@ -322,23 +322,23 @@ export default function DashboardPage() {
       </div>
 
       {tiles.totalAttempts === 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
-          <p className="font-medium text-slate-800">No practice yet</p>
-          <p className="mt-1 text-sm text-slate-500">Start a session — your daily activity and per-topic stats will build up here.</p>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 text-center">
+          <p className="font-medium text-slate-800 dark:text-slate-100">No practice yet</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Start a session — your daily activity and per-topic stats will build up here.</p>
           <div className="mt-4 flex justify-center gap-3">
-            <Link href="/practice" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Start practicing</Link>
+            <Link href="/practice" className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600">Start practicing</Link>
           </div>
         </div>
       )}
 
       {/* Daily activity */}
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold text-slate-700">Questions per day <span className="font-normal text-slate-400">· last {WINDOW_DAYS} days</span></h2>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Questions per day <span className="font-normal text-slate-400 dark:text-slate-500">· last {WINDOW_DAYS} days</span></h2>
           <DailyBars bars={questionBars} color="#4f46e5" />
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="mb-2 text-sm font-semibold text-slate-700">Time per day <span className="font-normal text-slate-400">· minutes</span></h2>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Time per day <span className="font-normal text-slate-400 dark:text-slate-500">· minutes</span></h2>
           <DailyBars bars={minuteBars} color="#0d9488" suffix="m" />
         </div>
       </section>
@@ -346,10 +346,10 @@ export default function DashboardPage() {
       {/* By topic */}
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-slate-700">By topic</h2>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">By topic</h2>
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400">Sort:</span>
-            <select value={sort} onChange={(e) => setSort(e.target.value as any)} className="rounded-md border border-slate-300 px-2 py-1">
+            <span className="text-slate-400 dark:text-slate-500">Sort:</span>
+            <select value={sort} onChange={(e) => setSort(e.target.value as any)} className="rounded-md border border-slate-300 dark:border-slate-700 px-2 py-1">
               <option value="attention">Needs attention</option>
               <option value="accuracy">Lowest accuracy</option>
               <option value="coverage">Least covered</option>
@@ -364,16 +364,16 @@ export default function DashboardPage() {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === t ? "bg-brand-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === t ? "bg-brand-600 text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
             >
               {t}
             </button>
           ))}
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="px-3 py-2 font-medium">Topic</th>
                 <th className="px-3 py-2 font-medium">Done / avail</th>
@@ -393,45 +393,45 @@ export default function DashboardPage() {
                 let trend = <span className="text-slate-300">—</span>;
                 if (s.firstHalf.t && s.secondHalf.t && s.attempts >= 4) {
                   const d = acc(s.secondHalf.t, s.secondHalf.c) - acc(s.firstHalf.t, s.firstHalf.c);
-                  if (d > 5) trend = <span className="text-emerald-600">▲ +{d}%</span>;
-                  else if (d < -5) trend = <span className="text-rose-600">▼ {d}%</span>;
-                  else trend = <span className="text-slate-400">≈</span>;
+                  if (d > 5) trend = <span className="text-emerald-600 dark:text-emerald-300">▲ +{d}%</span>;
+                  else if (d < -5) trend = <span className="text-rose-600 dark:text-rose-400">▼ {d}%</span>;
+                  else trend = <span className="text-slate-400 dark:text-slate-500">≈</span>;
                 }
                 return (
-                  <tr key={s.skill} className={`border-b border-slate-100 last:border-0 ${weak ? "bg-amber-50/50" : ""}`}>
+                  <tr key={s.skill} className={`border-b border-slate-100 last:border-0 ${weak ? "bg-amber-50 dark:bg-amber-950/50" : ""}`}>
                     <td className="px-3 py-2">
-                      <div className="font-medium text-slate-700">
+                      <div className="font-medium text-slate-700 dark:text-slate-200">
                         {s.skill}
                         {weak && <span className="ml-2 text-xs text-amber-600">⚠️ review</span>}
                       </div>
-                      {tab === "All" && <div className="text-[11px] text-slate-400">{s.test} · {s.domain}</div>}
+                      {tab === "All" && <div className="text-[11px] text-slate-400 dark:text-slate-500">{s.test} · {s.domain}</div>}
                     </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {done}<span className="text-slate-400"> / {s.available}</span>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                      {done}<span className="text-slate-400 dark:text-slate-500"> / {s.available}</span>
                     </td>
-                    <td className="px-3 py-2 text-slate-600">{s.recent}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{s.recent}</td>
                     <td className="px-3 py-2">
                       {s.attempts ? (
-                        <span className={`font-semibold ${a >= 70 ? "text-emerald-700" : a >= 40 ? "text-amber-700" : "text-rose-700"}`}>{a}%</span>
+                        <span className={`font-semibold ${a >= 70 ? "text-emerald-700 dark:text-emerald-300" : a >= 40 ? "text-amber-700 dark:text-amber-300" : "text-rose-700 dark:text-rose-300"}`}>{a}%</span>
                       ) : (
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-slate-600">{s.attempts ? `${Math.round(s.seconds / s.attempts)}s` : "—"}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{s.attempts ? `${Math.round(s.seconds / s.attempts)}s` : "—"}</td>
                     <td className="px-3 py-2 text-xs font-medium">{trend}</td>
                     <td className="px-3 py-2 text-xs">
-                      <span className={neglected ? "text-rose-500" : "text-slate-500"}>{daysAgoLabel(s.lastMs)}</span>
+                      <span className={neglected ? "text-rose-500 dark:text-rose-400" : "text-slate-500 dark:text-slate-400"}>{daysAgoLabel(s.lastMs)}</span>
                     </td>
                   </tr>
                 );
               })}
               {visibleSkills.length === 0 && (
-                <tr><td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-400">No topics in this tab yet.</td></tr>
+                <tr><td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-400 dark:text-slate-500">No topics in this tab yet.</td></tr>
               )}
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
           Accuracy counts your <strong>most recent</strong> answer per question, so re-doing a mistake correctly
           counts as right; time, volume, and activity are cumulative. &ldquo;Done / avail&rdquo; counts questions
           you&apos;ve answered in each topic against the total in the bank. Rows in amber are below{" "}
@@ -445,10 +445,10 @@ export default function DashboardPage() {
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-xs text-slate-500">{sub}</p>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">{sub}</p>
     </div>
   );
 }
