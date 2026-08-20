@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { Question } from "@/lib/types";
 import { DIFFICULTIES, DIFFICULTY_COLORS } from "@/lib/taxonomy";
@@ -9,10 +10,26 @@ import QuestionText from "@/components/QuestionText";
 
 type Status = "attempted" | "unattempted" | "wrong" | "correct" | "guessed" | "flagged";
 
+// Wrapper provides the Suspense boundary that useSearchParams requires in Next 14.
 export default function BrowsePage() {
+  return (
+    <Suspense fallback={null}>
+      <BrowseInner />
+    </Suspense>
+  );
+}
+
+function BrowseInner() {
+  const searchParams = useSearchParams();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Seed/refresh the search box from the `?q=` param (used by the nav search box).
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q !== null) setSearch(q);
+  }, [searchParams]);
   const [skill, setSkill] = useState("");
   const [difficulty, setDifficulty] = useState("");
   const [status, setStatus] = useState<Status | "">("");
