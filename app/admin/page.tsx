@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useUser } from "@/lib/userContext";
 import { listReports, deleteReport, type QuestionReport } from "@/lib/reports";
+import { listFeedback, deleteFeedback, type Feedback } from "@/lib/feedback";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/ToastProvider";
 import { PageLoader } from "@/components/ui/Spinner";
@@ -38,6 +39,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<Row[]>([]);
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [reports, setReports] = useState<QuestionReport[]>([]);
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [reportQCode, setReportQCode] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -46,12 +48,14 @@ export default function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const [{ data }, { data: att }, reps] = await Promise.all([
+    const [{ data }, { data: att }, reps, fb] = await Promise.all([
       supabase.from("users").select("*").order("created_at"),
       supabase.from("attempts").select("user_id").limit(100000),
       listReports(),
+      listFeedback(),
     ]);
     setUsers((data as Row[]) || []);
+    setFeedback(fb);
     const c = new Map<string, number>();
     for (const a of (att as any[]) || []) {
       if (a.user_id) c.set(a.user_id, (c.get(a.user_id) || 0) + 1);
@@ -72,6 +76,13 @@ export default function AdminPage() {
     await deleteReport(id);
     await load();
     toast.success("Report resolved.");
+  }
+
+  async function resolveFeedback(id: string) {
+    if (!(await confirm({ title: "Dismiss this feedback?", body: "It will be removed from the list.", confirmLabel: "Dismiss" }))) return;
+    await deleteFeedback(id);
+    await load();
+    toast.success("Feedback dismissed.");
   }
 
   useEffect(() => {
@@ -224,6 +235,40 @@ export default function AdminPage() {
                     className="flex-none rounded-md border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
                     Resolve
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">
+          Feedback {feedback.length > 0 && <span className="text-brand-600 dark:text-brand-300">({feedback.length})</span>}
+        </h2>
+        {loading ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
+        ) : feedback.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500">No feedback yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {feedback.map((f) => {
+              const who = users.find((u) => u.id === f.user_id)?.display_name || "someone";
+              return (
+                <div key={f.id} className="flex items-start justify-between gap-4 rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                  <div className="min-w-0">
+                    <div className="mb-0.5 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                      <span>{who}</span>
+                      <span>· {timeAgo(f.created_at)}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{f.message}</p>
+                  </div>
+                  <button
+                    onClick={() => resolveFeedback(f.id)}
+                    className="flex-none rounded-md border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Dismiss
                   </button>
                 </div>
               );

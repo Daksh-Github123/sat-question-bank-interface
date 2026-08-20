@@ -7,6 +7,8 @@ import { UserContext } from "@/lib/userContext";
 import NavBar from "./NavBar";
 import SiteFooter from "./SiteFooter";
 import BackToTop from "./BackToTop";
+import FeedbackButton from "./FeedbackButton";
+import CookieBanner from "./CookieBanner";
 import ToastProvider from "./ui/ToastProvider";
 import ConfirmProvider from "./ui/ConfirmDialog";
 
@@ -58,6 +60,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               </main>
               <SiteFooter />
               <BackToTop />
+              <FeedbackButton />
+              <CookieBanner />
             </div>
           )}
         </ConfirmProvider>

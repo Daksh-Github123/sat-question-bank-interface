@@ -117,6 +117,7 @@ export default function MorePage() {
     { href: "/leaderboard", label: "Leaderboard", desc: "See how everyone ranks by accuracy, volume, and time", emoji: "🏆", show: true },
     { href: "/browse", label: "Browse questions", desc: "Search and filter the full question bank", emoji: "📚", show: true },
     { href: "/reports", label: "Reports & backup", desc: "Progress reports and data export", emoji: "📄", show: true },
+    { href: "/faq", label: "FAQ & help", desc: "How the app works and answers to common questions", emoji: "❓", show: true },
     { href: "/import", label: "Import", desc: "Add questions from PDFs", emoji: "⬆️", show: !!user?.is_admin },
     { href: "/admin", label: "Admin", desc: "Manage accounts", emoji: "⚙️", show: !!user?.is_admin },
   ].filter((c) => c.show);
