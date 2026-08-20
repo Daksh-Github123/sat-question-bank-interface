@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { storeCurrentUser } from "@/lib/user";
 import { useUser } from "@/lib/userContext";
+import { APP_NAME, APP_TAGLINE } from "@/lib/appMeta";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -43,8 +44,11 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
-        <h1 className="text-center text-xl font-bold text-brand-600 dark:text-brand-300">SAT Bank</h1>
-        <p className="mt-1 text-center text-sm text-slate-500 dark:text-slate-400">Enter your username to continue</p>
+        <h1 className="text-center text-xl font-bold text-brand-600 dark:text-brand-300">{APP_NAME}</h1>
+        <p className="mt-1 text-center text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          {APP_TAGLINE}
+        </p>
+        <p className="mt-3 text-center text-sm text-slate-500 dark:text-slate-400">Enter your username to continue</p>
         <form onSubmit={login} className="mt-6 space-y-3">
           <input
             autoFocus

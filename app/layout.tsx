@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 import AuthGate from "@/components/AuthGate";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { APP_NAME, APP_TAGLINE } from "@/lib/appMeta";
 
 export const metadata: Metadata = {
-  title: "SAT Question Bank",
-  description: "Practice SAT questions by topic, track time and stats.",
+  title: APP_NAME,
+  description: `${APP_TAGLINE} — practice SAT questions by topic, track time and stats.`,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

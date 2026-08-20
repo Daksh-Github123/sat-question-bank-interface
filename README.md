@@ -1,8 +1,8 @@
-# SAT Question Bank Interface
+# Pace
 
-A simple, functional web app for practicing SAT questions by topic, tracking time
-per question, and viewing your performance statistics. Built with **Next.js**,
-**Supabase** (database), and deployed on **Vercel**.
+**Pace — Practice And Correct Errors.** A web app for practicing SAT questions by
+topic, tracking time per question, and viewing your performance statistics. Built
+with **Next.js**, **Supabase** (database), and deployed on **Vercel**.
 
 ## Features
 

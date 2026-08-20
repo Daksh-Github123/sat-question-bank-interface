@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/lib/userContext";
 import { clearCurrentUser } from "@/lib/user";
+import { APP_NAME } from "@/lib/appMeta";
 import ThemeToggle from "./ThemeToggle";
 
 // Primary daily-use tabs. Less-used areas (Browse, Reports, Import, Admin) and
@@ -54,7 +55,7 @@ export default function NavBar() {
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur print:hidden dark:border-slate-800 dark:bg-slate-900/95">
       <nav className="mx-auto flex max-w-5xl items-center gap-1 px-4 py-3">
         <Link href="/" className="mr-2 text-lg font-bold text-brand-600 dark:text-brand-300">
-          SAT Bank
+          {APP_NAME}
         </Link>
 
         {/* Desktop links */}
