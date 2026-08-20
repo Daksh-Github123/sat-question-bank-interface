@@ -535,7 +535,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Report options */}
-        <div className="mt-4 space-y-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4">
+        <div className="mt-4 space-y-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60 p-4">
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Difficulties</p>
             <div className="flex gap-2">

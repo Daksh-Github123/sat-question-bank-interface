@@ -157,7 +157,7 @@ export default function LeaderboardPage() {
                 return (
                   <tr
                     key={e.id}
-                    className={`border-b border-slate-100 last:border-0 ${mine ? "bg-brand-50 dark:bg-brand-950/60" : ""}`}
+                    className={`border-b border-slate-100 last:border-0 ${mine ? "bg-brand-50/60 dark:bg-brand-950/60" : ""}`}
                   >
                     <td className="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300">{medal}</td>
                     <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">

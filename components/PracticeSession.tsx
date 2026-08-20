@@ -655,7 +655,7 @@ export default function PracticeSession({
       </div>
 
       {reportOpen && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950/60 p-3">
+        <div className="rounded-lg border border-rose-200 bg-rose-50/60 dark:bg-rose-950/60 p-3">
           {reportSent ? (
             <p className="text-sm font-medium text-rose-700 dark:text-rose-300">Thanks — your report was submitted. ✓</p>
           ) : (

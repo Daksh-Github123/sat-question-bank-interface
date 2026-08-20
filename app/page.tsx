@@ -399,7 +399,7 @@ export default function DashboardPage() {
                   else trend = <span className="text-slate-400 dark:text-slate-500">≈</span>;
                 }
                 return (
-                  <tr key={s.skill} className={`border-b border-slate-100 last:border-0 ${weak ? "bg-amber-50 dark:bg-amber-950/50" : ""}`}>
+                  <tr key={s.skill} className={`border-b border-slate-100 last:border-0 ${weak ? "bg-amber-50/50 dark:bg-amber-950/50" : ""}`}>
                     <td className="px-3 py-2">
                       <div className="font-medium text-slate-700 dark:text-slate-200">
                         {s.skill}
