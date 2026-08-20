@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { currentUserId } from "@/lib/user";
 import { listVocab, sentenceFor } from "@/lib/vocab";
+import CopyButton from "@/components/ui/CopyButton";
 
 interface SessionOpt {
   id: string;
@@ -87,7 +88,6 @@ export default function ReportsPage() {
   const [end, setEnd] = useState(iso(today));
   const [report, setReport] = useState("");
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
   const [scope, setScope] = useState<"range" | "session">("range");
   const [sessions, setSessions] = useState<SessionOpt[]>([]);
@@ -134,7 +134,6 @@ export default function ReportsPage() {
   async function generate() {
     setBusy(true);
     setReport("");
-    setCopied(false);
     const uid = currentUserId();
     let query = supabase
       .from("attempts")
@@ -360,13 +359,6 @@ export default function ReportsPage() {
     setBusy(false);
   }
 
-  async function copyReport() {
-    try {
-      await navigator.clipboard.writeText(report);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {}
-  }
 
   // ---- Vocabulary report ----
   interface VocabRow {
@@ -380,12 +372,10 @@ export default function ReportsPage() {
   const [vocabReport, setVocabReport] = useState("");
   const [vocabRows, setVocabRows] = useState<VocabRow[]>([]);
   const [vocabBusy, setVocabBusy] = useState(false);
-  const [vocabCopied, setVocabCopied] = useState(false);
 
   async function generateVocab() {
     setVocabBusy(true);
     setVocabReport("");
-    setVocabCopied(false);
     const items = await listVocab();
     if (items.length === 0) {
       setVocabRows([]);
@@ -441,13 +431,6 @@ export default function ReportsPage() {
     setVocabBusy(false);
   }
 
-  async function copyVocab() {
-    try {
-      await navigator.clipboard.writeText(vocabReport);
-      setVocabCopied(true);
-      setTimeout(() => setVocabCopied(false), 1500);
-    } catch {}
-  }
 
   function downloadVocabCsv() {
     if (vocabRows.length === 0) return;
@@ -498,19 +481,19 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Reports &amp; backup</h1>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Progress report</h2>
-        <p className="mb-3 text-sm text-slate-500">
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Progress report</h2>
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
           Produce a summary you can copy out — for a date range or a single practice session. Choose which
           sections to include, filter by difficulty, and pull out questions by note or by how long they took.
         </p>
-        <div className="mb-3 inline-flex rounded-md border border-slate-200 p-0.5 text-sm">
+        <div className="mb-3 inline-flex rounded-md border border-slate-200 dark:border-slate-800 p-0.5 text-sm">
           {(["range", "session"] as const).map((sc) => (
             <button
               key={sc}
               onClick={() => setScope(sc)}
               className={`rounded px-3 py-1 font-medium ${
-                scope === sc ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                scope === sc ? "bg-brand-600 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               }`}
             >
               {sc === "range" ? "Date range" : "By session"}
@@ -521,24 +504,24 @@ export default function ReportsPage() {
           {scope === "range" ? (
             <>
               <label className="text-sm">
-                <span className="mb-1 block font-medium text-slate-600">From</span>
-                <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
+                <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">From</span>
+                <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2" />
               </label>
               <label className="text-sm">
-                <span className="mb-1 block font-medium text-slate-600">To</span>
-                <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2" />
+                <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">To</span>
+                <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2" />
               </label>
             </>
           ) : (
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-600">Session</span>
+              <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Session</span>
               {sessions.length === 0 ? (
-                <span className="block rounded-md border border-slate-200 px-3 py-2 text-slate-400">No sessions yet</span>
+                <span className="block rounded-md border border-slate-200 dark:border-slate-800 px-3 py-2 text-slate-400 dark:text-slate-500">No sessions yet</span>
               ) : (
                 <select
                   value={sessionId}
                   onChange={(e) => setSessionId(e.target.value)}
-                  className="min-w-[16rem] rounded-md border border-slate-300 px-3 py-2"
+                  className="min-w-[16rem] rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
                 >
                   {sessions.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -552,16 +535,16 @@ export default function ReportsPage() {
         </div>
 
         {/* Report options */}
-        <div className="mt-4 space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+        <div className="mt-4 space-y-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60 p-4">
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Difficulties</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Difficulties</p>
             <div className="flex gap-2">
               {["Easy", "Medium", "Hard"].map((d) => (
                 <button
                   key={d}
                   onClick={() => toggleDiff(d)}
                   className={`rounded-full border px-3 py-1 text-sm font-medium ${
-                    diffFilter.has(d) ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-300 bg-white text-slate-400"
+                    diffFilter.has(d) ? "border-brand-500 bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300" : "border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500"
                   }`}
                 >
                   {d}
@@ -571,7 +554,7 @@ export default function ReportsPage() {
           </div>
 
           <div>
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Include sections</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Include sections</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
               {(
                 [
@@ -586,12 +569,12 @@ export default function ReportsPage() {
                   ["slow", `Answered slow (> ${slowSec}s)`],
                 ] as [keyof typeof inc, string][]
               ).map(([k, label]) => (
-                <label key={k} className="flex items-center gap-2 text-sm text-slate-700">
+                <label key={k} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
                     checked={inc[k]}
                     onChange={() => toggleInc(k)}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                    className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-brand-600 dark:text-brand-300"
                   />
                   {label}
                 </label>
@@ -602,7 +585,7 @@ export default function ReportsPage() {
           {(inc.fast || inc.slow) && (
             <div className="flex flex-wrap gap-4">
               {inc.fast && (
-                <label className="text-sm text-slate-600">
+                <label className="text-sm text-slate-600 dark:text-slate-300">
                   Fast: under{" "}
                   <input
                     type="number"
@@ -610,13 +593,13 @@ export default function ReportsPage() {
                     max={600}
                     value={fastSec}
                     onChange={(e) => setFastSec(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="mx-1 w-20 rounded-md border border-slate-300 px-2 py-1"
+                    className="mx-1 w-20 rounded-md border border-slate-300 dark:border-slate-700 px-2 py-1"
                   />
                   seconds
                 </label>
               )}
               {inc.slow && (
-                <label className="text-sm text-slate-600">
+                <label className="text-sm text-slate-600 dark:text-slate-300">
                   Slow: over{" "}
                   <input
                     type="number"
@@ -624,7 +607,7 @@ export default function ReportsPage() {
                     max={3600}
                     value={slowSec}
                     onChange={(e) => setSlowSec(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="mx-1 w-20 rounded-md border border-slate-300 px-2 py-1"
+                    className="mx-1 w-20 rounded-md border border-slate-300 dark:border-slate-700 px-2 py-1"
                   />
                   seconds
                 </label>
@@ -632,19 +615,19 @@ export default function ReportsPage() {
             </div>
           )}
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={fullDetail}
               onChange={(e) => setFullDetail(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-brand-600"
+              className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-brand-600 dark:text-brand-300"
             />
             Include full question text, choices &amp; rationale in the lists
           </label>
         </div>
 
         <div className="mt-4">
-          <button onClick={generate} disabled={busy || (scope === "session" && !sessionId)} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+          <button onClick={generate} disabled={busy || (scope === "session" && !sessionId)} className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50">
             {busy ? "Generating…" : "Generate report"}
           </button>
         </div>
@@ -652,18 +635,20 @@ export default function ReportsPage() {
         {report && (
           <div className="mt-4">
             <div className="mb-2 flex justify-end">
-              <button onClick={copyReport} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-                {copied ? "Copied!" : "Copy report"}
-              </button>
+              <CopyButton
+                text={report}
+                label="Copy report"
+                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              />
             </div>
-            <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">{report}</pre>
+            <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-4 text-xs text-slate-700 dark:text-slate-200">{report}</pre>
           </div>
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Vocabulary export</h2>
-        <p className="mb-3 text-sm text-slate-500">
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Vocabulary export</h2>
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
           A report of every word you&apos;ve saved — with its definition and the full sentence it was used in
           within the question. Copy it out or download as CSV.
         </p>
@@ -671,14 +656,14 @@ export default function ReportsPage() {
           <button
             onClick={generateVocab}
             disabled={vocabBusy}
-            className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            className="rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50"
           >
             {vocabBusy ? "Generating…" : "Generate vocabulary report"}
           </button>
           {vocabRows.length > 0 && (
             <button
               onClick={downloadVocabCsv}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-md border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               Download CSV
             </button>
@@ -687,22 +672,24 @@ export default function ReportsPage() {
         {vocabReport && (
           <div className="mt-4">
             <div className="mb-2 flex justify-end">
-              <button onClick={copyVocab} className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-                {vocabCopied ? "Copied!" : "Copy report"}
-              </button>
+              <CopyButton
+                text={vocabReport}
+                label="Copy report"
+                className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              />
             </div>
-            <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700">{vocabReport}</pre>
+            <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-4 text-xs text-slate-700 dark:text-slate-200">{vocabReport}</pre>
           </div>
         )}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="mb-1 text-sm font-semibold text-slate-800">Personal backup</h2>
-        <p className="mb-3 text-sm text-slate-500">
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-1 text-sm font-semibold text-slate-800 dark:text-slate-100">Personal backup</h2>
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
           Your data is always saved online automatically. This downloads a personal copy (all questions, attempts,
           notes, and flags) as a JSON file for extra safety.
         </p>
-        <button onClick={downloadBackup} disabled={backupBusy} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+        <button onClick={downloadBackup} disabled={backupBusy} className="rounded-md border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50">
           {backupBusy ? "Preparing…" : "Download backup (.json)"}
         </button>
       </section>

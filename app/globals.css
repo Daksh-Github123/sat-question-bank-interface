@@ -2,10 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-}
+/* color-scheme is set inline per-theme by lib/theme.ts (light or dark), so we don't
+   hard-pin it here anymore. */
 
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+.dark body {
+  @apply bg-slate-950 text-slate-100;
+}
+
+/* Print: drop app chrome and flatten backgrounds so reports/pages print cleanly.
+   Chrome (nav, footer, floating buttons) is tagged `print:hidden` in markup. */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* Report/backup output blocks: let long text wrap and page-break naturally. */
+  pre {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    border: none !important;
+    background: transparent !important;
+    color: #000 !important;
+  }
+
+  a[href]::after {
+    content: "";
+  }
 }

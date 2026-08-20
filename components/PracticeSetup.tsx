@@ -117,14 +117,14 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
   // exceeds what's available (auto-dismisses if filters/quantity change).
   const showNeedMore = needMore && count > matchingCount && matchingCount > 0;
 
-  if (loading) return <p className="text-sm text-slate-500">Loading your question bank…</p>;
+  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Loading your question bank…</p>;
 
   if (meta.length === 0) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-6 text-center">
-        <p className="font-medium text-slate-800">Your question bank is empty.</p>
-        <p className="mt-1 text-sm text-slate-500">
-          Head to <a href="/import" className="text-brand-600 underline">Import PDFs</a> to add
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 text-center">
+        <p className="font-medium text-slate-800 dark:text-slate-100">Your question bank is empty.</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Head to <a href="/import" className="text-brand-600 dark:text-brand-300 underline">Import PDFs</a> to add
           questions first.
         </p>
       </div>
@@ -165,22 +165,22 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">New practice session</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Choose topics, difficulty mix, and timing. Your progress saves automatically so you can
           pause and pick up later.
         </p>
       </div>
 
       {/* Difficulty */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Difficulty</h2>
+      <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Difficulty</h2>
         <div className="flex flex-wrap gap-2">
           {DIFFICULTIES.map((d) => (
             <button
               key={d}
               onClick={() => toggleDifficulty(d)}
               className={`rounded-full border px-4 py-1.5 text-sm font-medium ${
-                difficulties.has(d) ? DIFFICULTY_COLORS[d] : "border-slate-200 bg-white text-slate-400"
+                difficulties.has(d) ? DIFFICULTY_COLORS[d] : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500"
               }`}
             >
               {d}
@@ -190,12 +190,12 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       </section>
 
       {/* Skills */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-800">Topics &amp; skills</h2>
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Topics &amp; skills</h2>
           <button
             onClick={() => setSelectedSkills(new Set())}
-            className="text-xs text-brand-600 hover:underline"
+            className="text-xs text-brand-600 dark:text-brand-300 hover:underline"
           >
             {selectedSkills.size === 0 ? "All skills included" : "Clear selection"}
           </button>
@@ -208,7 +208,7 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
             if (presentDomains.length === 0) return null;
             return (
               <div key={t.test}>
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {t.test}
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -218,10 +218,10 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
                     return (
                       <div key={d.domain} className="rounded-md border border-slate-100 p-3">
                         <div className="mb-1.5 flex items-center justify-between">
-                          <span className="text-sm font-medium text-slate-700">{d.domain}</span>
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{d.domain}</span>
                           <button
                             onClick={() => setDomainSkills(ps, !allOn)}
-                            className="text-[11px] text-brand-600 hover:underline"
+                            className="text-[11px] text-brand-600 dark:text-brand-300 hover:underline"
                           >
                             {allOn ? "none" : "all"}
                           </button>
@@ -232,16 +232,16 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
                               key={s}
                               className="flex cursor-pointer items-center justify-between gap-2 text-sm"
                             >
-                              <span className="flex items-center gap-2 text-slate-600">
+                              <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                                 <input
                                   type="checkbox"
                                   checked={selectedSkills.has(s)}
                                   onChange={() => toggleSkill(s)}
-                                  className="h-4 w-4 rounded border-slate-300 text-brand-600"
+                                  className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-brand-600 dark:text-brand-300"
                                 />
                                 {s}
                               </span>
-                              <span className="text-xs text-slate-400">{skillCounts.get(s) || 0}</span>
+                              <span className="text-xs text-slate-400 dark:text-slate-500">{skillCounts.get(s) || 0}</span>
                             </label>
                           ))}
                         </div>
@@ -256,64 +256,64 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       </section>
 
       {/* Mix & focus */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Question selection</h2>
+      <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Question selection</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">Difficulty mix</span>
+            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Difficulty mix</span>
             <select
               value={mix}
               onChange={(e) => setMix(e.target.value as any)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
             >
               <option value="balanced">Balanced (use what&apos;s available)</option>
               <option value="test-like">Test-like (≈25% easy · 50% medium · 25% hard)</option>
             </select>
           </label>
           <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">Focus</span>
+            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Focus</span>
             <select
               value={focus}
               onChange={(e) => setFocus(e.target.value as any)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
             >
               <option value="even">Even across selected skills</option>
               <option value="weak">Lean toward my weak skills (&lt;70%)</option>
             </select>
           </label>
         </div>
-        <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+        <label className="mt-3 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
           <input
             type="checkbox"
             checked={avoidSeen}
             onChange={(e) => setAvoidSeen(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-brand-600"
+            className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-brand-600 dark:text-brand-300"
           />
           Only new questions I haven&apos;t done before
         </label>
-        <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+        <label className="mt-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
           <input
             type="checkbox"
             checked={includeReview}
             onChange={(e) => setIncludeReview(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-brand-600"
+            className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-brand-600 dark:text-brand-300"
           />
           Mix in questions I previously missed (due for review)
         </label>
-        <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+        <label className="mt-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
           <input
             type="checkbox"
             checked={requireTags}
             onChange={(e) => setRequireTags(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-brand-600"
+            className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-brand-600 dark:text-brand-300"
           />
           Ask me to tag confidence (and reason if wrong) before moving on
         </label>
       </section>
 
       {/* Timing */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">Timing</h2>
+      <section className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Timing</h2>
         <div className="grid gap-2 sm:grid-cols-3">
           {(
             [
@@ -326,17 +326,17 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
               key={m}
               onClick={() => setMode(m)}
               className={`rounded-md border px-3 py-2 text-left ${
-                mode === m ? "border-brand-500 bg-brand-50" : "border-slate-300"
+                mode === m ? "border-brand-500 bg-brand-50 dark:bg-brand-950" : "border-slate-300 dark:border-slate-700"
               }`}
             >
-              <div className="text-sm font-medium text-slate-700">{label}</div>
-              <div className="text-xs text-slate-400">{sub}</div>
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500">{sub}</div>
             </button>
           ))}
         </div>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <label className="text-sm">
-            <span className="mb-1 block font-medium text-slate-600">
+            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">
               Number of questions (max {matchingCount})
             </span>
             <input
@@ -345,42 +345,42 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
               max={matchingCount}
               value={count}
               onChange={(e) => setCount(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
             />
           </label>
           {mode === "timer" && (
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-600">Seconds per question</span>
+              <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Seconds per question</span>
               <input
                 type="number"
                 min={10}
                 max={600}
                 value={seconds}
                 onChange={(e) => setSeconds(Math.max(10, parseInt(e.target.value) || 10))}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
               />
             </label>
           )}
           {mode === "module" && (
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-600">Total time (minutes)</span>
+              <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Total time (minutes)</span>
               <input
                 type="number"
                 min={1}
                 max={240}
                 value={moduleMinutes}
                 onChange={(e) => setModuleMinutes(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
               />
             </label>
           )}
           {mode === "stopwatch" && (
             <label className="text-sm">
-              <span className="mb-1 block font-medium text-slate-600">Order</span>
+              <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Order</span>
               <select
                 value={order}
                 onChange={(e) => setOrder(e.target.value as any)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
               >
                 <option value="random">Shuffled</option>
                 <option value="sequential">In bank order</option>
@@ -391,12 +391,12 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       </section>
 
       {showNeedMore && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 p-4 text-sm">
           <p className="font-medium text-amber-800">
             Only {matchingCount} question{matchingCount === 1 ? "" : "s"} match these filters, but you asked
             for {count}.
           </p>
-          <p className="mt-0.5 text-amber-700">
+          <p className="mt-0.5 text-amber-700 dark:text-amber-300">
             Start with all {matchingCount} available, or adjust your filters / quantity for more.
           </p>
           <div className="mt-3 flex gap-2">
@@ -412,7 +412,7 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
             </button>
             <button
               onClick={() => setNeedMore(false)}
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               Keep editing
             </button>
@@ -421,13 +421,13 @@ export default function PracticeSetup({ onStart }: { onStart: (p: StartPayload) 
       )}
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           {matchingCount} match — starting <strong>{effectiveCount}</strong>.
         </p>
         <button
           disabled={!canStart}
           onClick={handleStart}
-          className="rounded-md bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+          className="rounded-md bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50"
         >
           Start practice
         </button>

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { ParsedQuestion } from "@/lib/types";
 import { DIFFICULTY_COLORS } from "@/lib/taxonomy";
 import { useUser } from "@/lib/userContext";
+import { useToast } from "@/components/ui/ToastProvider";
 
 interface FileResult {
   name: string;
@@ -16,6 +17,7 @@ interface FileResult {
 
 export default function ImportPage() {
   const { user } = useUser();
+  const toast = useToast();
   const [results, setResults] = useState<FileResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>("");
@@ -98,18 +100,22 @@ export default function ImportPage() {
     const err1 = await upsertChunks(normalRows);
     if (err1) {
       setStatus(`Error saving: ${err1}`);
+      toast.error(`Error saving: ${err1}`);
       setBusy(false);
       return;
     }
     const err2 = await upsertChunks(graphicRows);
     if (err2) {
       setStatus(`Error saving: ${err2}`);
+      toast.error(`Error saving: ${err2}`);
       setBusy(false);
       return;
     }
-    setSaved(normalRows.length + graphicRows.length);
+    const total = normalRows.length + graphicRows.length;
+    setSaved(total);
     setStatus("");
     setBusy(false);
+    toast.success(`Saved ${total} question${total === 1 ? "" : "s"} to the bank.`);
   }
 
   // Group parsed questions by skill for a quick summary.
@@ -124,9 +130,9 @@ export default function ImportPage() {
 
   if (!user?.is_admin) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-        <p className="font-medium text-slate-800">Admins only</p>
-        <p className="mt-1 text-sm text-slate-500">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
+        <p className="font-medium text-slate-800 dark:text-slate-100">Admins only</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           The question bank is shared by everyone, so only the admin can import new PDFs.
         </p>
       </div>
@@ -137,13 +143,13 @@ export default function ImportPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Import question PDFs</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Drop one or more exported question-bank PDFs. They are parsed in your browser and
           saved to your bank. Re-importing the same questions updates them (no duplicates).
         </p>
       </div>
 
-      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center hover:border-brand-500">
+      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-10 text-center hover:border-brand-500">
         <input
           type="file"
           accept="application/pdf"
@@ -152,23 +158,23 @@ export default function ImportPage() {
           disabled={busy}
           onChange={(e) => handleFiles(e.target.files)}
         />
-        <span className="text-sm font-medium text-slate-700">
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
           {busy ? status || "Working…" : "Click to choose PDF files"}
         </span>
-        <span className="mt-1 text-xs text-slate-400">You can select multiple topic PDFs at once</span>
+        <span className="mt-1 text-xs text-slate-400 dark:text-slate-500">You can select multiple topic PDFs at once</span>
       </label>
 
       {results.length > 0 && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-800">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
                   Parsed {totalParsed} question{totalParsed === 1 ? "" : "s"} from {results.length}{" "}
                   file{results.length === 1 ? "" : "s"}
                 </p>
                 {results.map((r) => (
-                  <p key={r.name} className="text-xs text-slate-500">
+                  <p key={r.name} className="text-xs text-slate-500 dark:text-slate-400">
                     {r.name}: {r.error ? `error — ${r.error}` : `${r.parsed.length} questions`}
                   </p>
                 ))}
@@ -176,35 +182,35 @@ export default function ImportPage() {
               <button
                 onClick={save}
                 disabled={busy || !totalParsed}
-                className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50"
               >
                 {busy ? "Saving…" : `Save ${totalParsed} to bank`}
               </button>
             </div>
             {saved !== null && (
-              <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              <p className="mt-3 rounded-md bg-emerald-50 dark:bg-emerald-950 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
                 ✓ Saved {saved} questions. They&apos;re now available in Practice and Browse.
               </p>
             )}
             {status && !busy && (
-              <p className="mt-3 text-sm text-rose-600">{status}</p>
+              <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">{status}</p>
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="mb-2 text-sm font-semibold text-slate-800">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <p className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
               Underlines detected in {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length} question
               {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length === 1 ? "" : "s"}
             </p>
-            <p className="mb-2 text-xs text-slate-400">
+            <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
               Saving these will render the exact underline in Practice, Browse, and Review.
             </p>
             {results.some((r) => r.diag) && (
-              <div className="mb-2 rounded-md bg-slate-50 p-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Detection diagnostic</p>
+              <div className="mb-2 rounded-md bg-slate-50 dark:bg-slate-800 p-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Detection diagnostic</p>
                 {results.map((r) =>
                   r.diag ? (
-                    <p key={r.name} className="break-all font-mono text-[11px] text-slate-500">
+                    <p key={r.name} className="break-all font-mono text-[11px] text-slate-500 dark:text-slate-400">
                       {r.name}: {r.diag}
                     </p>
                   ) : null
@@ -216,8 +222,8 @@ export default function ImportPage() {
                 .filter((q) => q.underline_spans && q.underline_spans.length)
                 .slice(0, 40)
                 .map((q) => (
-                  <div key={q.question_id} className="text-xs text-slate-600">
-                    <span className="font-mono text-slate-400">{q.question_id}</span>{" "}
+                  <div key={q.question_id} className="text-xs text-slate-600 dark:text-slate-300">
+                    <span className="font-mono text-slate-400 dark:text-slate-500">{q.question_id}</span>{" "}
                     {q.underline_spans!.map((s, i) => (
                       <span key={i}>
                         {i > 0 && <span className="text-slate-300"> · </span>}
@@ -227,19 +233,19 @@ export default function ImportPage() {
                   </div>
                 ))}
               {allParsed.filter((q) => q.underline_spans && q.underline_spans.length).length === 0 && (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 dark:text-slate-500">
                   No underlines detected in these files. (Only questions whose prompt mentions an underline are checked.)
                 </p>
               )}
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <p className="mb-2 text-sm font-semibold text-slate-800">Breakdown by skill</p>
+          <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <p className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">Breakdown by skill</p>
             <div className="space-y-1">
               {Array.from(bySkill.entries()).map(([key, v]) => (
                 <div key={key} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-700">{key}</span>
+                  <span className="text-slate-700 dark:text-slate-200">{key}</span>
                   <span className="flex items-center gap-1">
                     {["Easy", "Medium", "Hard"].map((d) =>
                       v.diff[d] ? (
@@ -251,7 +257,7 @@ export default function ImportPage() {
                         </span>
                       ) : null
                     )}
-                    <span className="ml-2 font-semibold text-slate-800">{v.total}</span>
+                    <span className="ml-2 font-semibold text-slate-800 dark:text-slate-100">{v.total}</span>
                   </span>
                 </div>
               ))}
@@ -259,7 +265,7 @@ export default function ImportPage() {
           </div>
 
           {allParsed.some((q) => !q.test || !q.skill || !q.correct_answer) && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <p className="rounded-md bg-amber-50 dark:bg-amber-950 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
               Some questions are missing a test, skill, or correct answer — the PDF format may
               differ slightly. They will still be saved; check the Browse page to review.
             </p>

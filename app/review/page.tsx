@@ -9,6 +9,8 @@ import { REVIEW_INTERVAL_DAYS } from "@/lib/practice";
 import { setNote as persistNote } from "@/lib/questionState";
 import { currentUserId } from "@/lib/user";
 import QuestionText from "@/components/QuestionText";
+import CopyButton from "@/components/ui/CopyButton";
+import { PageLoader } from "@/components/ui/Spinner";
 
 interface WrongItem {
   attemptId: string;
@@ -34,7 +36,6 @@ export default function ReviewPage() {
   const [reason, setReason] = useState("");
   const [dueOnly, setDueOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -95,14 +96,6 @@ export default function ReviewPage() {
     return m;
   }, [items]);
 
-  async function copyId(qid: string) {
-    try {
-      await navigator.clipboard.writeText(qid);
-      setCopied(qid);
-      setTimeout(() => setCopied(null), 1500);
-    } catch {}
-  }
-
   async function updateReason(item: WrongItem, r: MissReason) {
     setItems((prev) => prev.map((i) => (i.attemptId === item.attemptId ? { ...i, missReason: r } : i)));
     await supabase.from("attempts").update({ miss_reason: r }).eq("id", item.attemptId);
@@ -113,19 +106,19 @@ export default function ReviewPage() {
     await persistNote(item.question.id, note);
   }
 
-  if (loading) return <p className="text-sm text-slate-500">Loading your mistakes…</p>;
+  if (loading) return <PageLoader label="Loading your mistakes…" />;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Review mistakes</h1>
-        <span className="text-sm text-slate-500">{items.length} to fix</span>
+        <span className="text-sm text-slate-500 dark:text-slate-400">{items.length} to fix</span>
       </div>
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-lg font-semibold text-slate-800">No outstanding mistakes 🎉</p>
-          <p className="mt-1 text-sm text-slate-500">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
+          <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">No outstanding mistakes 🎉</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Questions you miss show up here automatically so you can re-attempt and clear them.
           </p>
         </div>
@@ -136,7 +129,7 @@ export default function ReviewPage() {
             <div className="flex flex-wrap gap-2">
               {(Object.keys(MISS_REASON_LABELS) as MissReason[]).map((r) =>
                 reasonCounts.get(r) ? (
-                  <span key={r} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
+                  <span key={r} className="rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1 text-xs text-slate-600 dark:text-slate-300">
                     {MISS_REASON_LABELS[r]}: <strong>{reasonCounts.get(r)}</strong>
                   </span>
                 ) : null
@@ -146,54 +139,53 @@ export default function ReviewPage() {
 
           {/* Filters */}
           <div className="flex flex-wrap gap-2">
-            <select value={skill} onChange={(e) => setSkill(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <select value={skill} onChange={(e) => setSkill(e.target.value)} className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm">
               <option value="">All skills</option>
               {skills.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm">
               <option value="">All difficulties</option>
               {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
-            <select value={reason} onChange={(e) => setReason(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <select value={reason} onChange={(e) => setReason(e.target.value)} className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm">
               <option value="">Any reason</option>
               {(Object.keys(MISS_REASON_LABELS) as MissReason[]).map((r) => <option key={r} value={r}>{MISS_REASON_LABELS[r]}</option>)}
             </select>
-            <label className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600">
+            <label className="flex items-center gap-2 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm text-slate-600 dark:text-slate-300">
               <input type="checkbox" checked={dueOnly} onChange={(e) => setDueOnly(e.target.checked)} className="h-4 w-4" />
               Due for review
             </label>
           </div>
 
-          <p className="text-xs text-slate-400">{filtered.length} shown</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">{filtered.length} shown</p>
 
           <div className="space-y-3">
             {filtered.map((item) => {
               const q = item.question;
               const open = expanded === item.attemptId;
               return (
-                <div key={item.attemptId} className="rounded-lg border border-slate-200 bg-white p-4">
+                <div key={item.attemptId} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <button onClick={() => setExpanded(open ? null : item.attemptId)} className="min-w-0 flex-1 text-left">
                       <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
                         <span className={`rounded border px-1.5 py-0.5 ${DIFFICULTY_COLORS[q.difficulty] || ""}`}>{q.difficulty}</span>
-                        <span className="text-slate-500">{q.skill}</span>
-                        <span className="text-slate-400">missed {timeAgo(item.when)}</span>
+                        <span className="text-slate-500 dark:text-slate-400">{q.skill}</span>
+                        <span className="text-slate-400 dark:text-slate-500">missed {timeAgo(item.when)}</span>
                       </div>
-                      <p className="line-clamp-1 text-sm text-slate-500">{q.question_text}</p>
+                      <p className="line-clamp-1 text-sm text-slate-500 dark:text-slate-400">{q.question_text}</p>
                       <p className="mt-1 text-xs">
-                        <span className="text-rose-600">You: {item.selected || "—"}</span>
+                        <span className="text-rose-600 dark:text-rose-400">You: {item.selected || "—"}</span>
                         <span className="mx-2 text-slate-300">|</span>
-                        <span className="text-emerald-600">Correct: {q.correct_answer}</span>
+                        <span className="text-emerald-600 dark:text-emerald-300">Correct: {q.correct_answer}</span>
                       </p>
                     </button>
                     <div className="flex flex-none flex-col items-end gap-1">
-                      <button
-                        onClick={() => copyId(q.question_id)}
-                        className="rounded border border-slate-200 px-2 py-1 font-mono text-[11px] text-slate-500 hover:bg-slate-50"
-                        title="Copy question ID"
-                      >
-                        {copied === q.question_id ? "copied!" : q.question_id}
-                      </button>
+                      <CopyButton
+                        text={q.question_id}
+                        label={q.question_id}
+                        copiedLabel="copied!"
+                        className="rounded border border-slate-200 dark:border-slate-800 px-2 py-1 font-mono text-[11px] text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      />
                     </div>
                   </div>
 
@@ -201,17 +193,17 @@ export default function ReviewPage() {
                     <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
                       {q.graph_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={q.graph_url} alt="Question graphic" className="max-w-full rounded-lg border border-slate-200" />
+                        <img src={q.graph_url} alt="Question graphic" className="max-w-full rounded-lg border border-slate-200 dark:border-slate-800" />
                       ) : q.needs_graphic ? (
-                        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        <p className="rounded-md bg-amber-50 dark:bg-amber-950 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                           ⚠ This question relies on a graph that isn&apos;t available yet.
                         </p>
                       ) : null}
-                      <QuestionText text={q.question_text} underlineSpans={q.underline_spans} className="text-sm text-slate-700" />
+                      <QuestionText text={q.question_text} underlineSpans={q.underline_spans} className="text-sm text-slate-700 dark:text-slate-200" />
                       {q.choices && (
                         <ul className="space-y-1 text-sm">
                           {q.choices.map((c) => (
-                            <li key={c.letter} className={c.letter === q.correct_answer ? "font-medium text-emerald-700" : item.selected === c.letter ? "text-rose-600" : "text-slate-600"}>
+                            <li key={c.letter} className={c.letter === q.correct_answer ? "font-medium text-emerald-700 dark:text-emerald-300" : item.selected === c.letter ? "text-rose-600 dark:text-rose-400" : "text-slate-600 dark:text-slate-300"}>
                               {c.letter}. {c.text}
                               {c.letter === q.correct_answer && " ✓"}
                               {item.selected === c.letter && c.letter !== q.correct_answer && " ← your answer"}
@@ -220,20 +212,20 @@ export default function ReviewPage() {
                         </ul>
                       )}
                       {q.rationale && (
-                        <div className="rounded-md bg-slate-50 p-3">
-                          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400">Explanation</p>
-                          <p className="whitespace-pre-wrap text-sm text-slate-600">{q.rationale}</p>
+                        <div className="rounded-md bg-slate-50 dark:bg-slate-800 p-3">
+                          <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Explanation</p>
+                          <p className="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">{q.rationale}</p>
                         </div>
                       )}
 
                       {/* Miss-reason */}
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-medium text-slate-500">Why missed?</span>
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Why missed?</span>
                         {(Object.keys(MISS_REASON_LABELS) as MissReason[]).map((r) => (
                           <button
                             key={r}
                             onClick={() => updateReason(item, r)}
-                            className={`rounded-full border px-3 py-1 text-xs font-medium ${item.missReason === r ? "border-rose-400 bg-rose-50 text-rose-700" : "border-slate-300 text-slate-500"}`}
+                            className={`rounded-full border px-3 py-1 text-xs font-medium ${item.missReason === r ? "border-rose-400 bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300" : "border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400"}`}
                           >
                             {MISS_REASON_LABELS[r]}
                           </button>
@@ -259,7 +251,7 @@ function NoteEditor({ initial, onSave }: { initial: string; onSave: (n: string) 
   const [saved, setSaved] = useState(false);
   return (
     <div>
-      <p className="mb-1 text-xs font-medium text-slate-500">📝 My note</p>
+      <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">📝 My note</p>
       <div className="flex gap-2">
         <input
           value={value}
@@ -268,7 +260,7 @@ function NoteEditor({ initial, onSave }: { initial: string; onSave: (n: string) 
             setSaved(false);
           }}
           placeholder="Your takeaway for this question…"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+          className="flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm"
         />
         <button
           onClick={() => {

@@ -70,7 +70,7 @@ export default function VocabCapture({
           onMouseDown={(e) => e.preventDefault()}
           onClick={save}
           style={{ position: "fixed", left: sel.x, top: Math.max(8, sel.y - 40), transform: "translateX(-50%)" }}
-          className="z-50 whitespace-nowrap rounded-full bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-lg hover:bg-brand-700"
+          className="z-50 whitespace-nowrap rounded-full bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white shadow-lg hover:bg-brand-700 dark:hover:bg-brand-600"
         >
           {label}
         </button>

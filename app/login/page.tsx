@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { storeCurrentUser } from "@/lib/user";
 import { useUser } from "@/lib/userContext";
+import { APP_NAME, APP_TAGLINE } from "@/lib/appMeta";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -41,10 +42,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-center text-xl font-bold text-brand-600">SAT Bank</h1>
-        <p className="mt-1 text-center text-sm text-slate-500">Enter your username to continue</p>
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+      <div className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
+        <h1 className="text-center text-xl font-bold text-brand-600 dark:text-brand-300">{APP_NAME}</h1>
+        <p className="mt-1 text-center text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          {APP_TAGLINE}
+        </p>
+        <p className="mt-3 text-center text-sm text-slate-500 dark:text-slate-400">Enter your username to continue</p>
         <form onSubmit={login} className="mt-6 space-y-3">
           <input
             autoFocus
@@ -53,18 +57,18 @@ export default function LoginPage() {
             placeholder="username"
             autoCapitalize="none"
             autoCorrect="off"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
           />
-          {error && <p className="text-sm text-rose-600">{error}</p>}
+          {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
           <button
             type="submit"
             disabled={busy || !username.trim()}
-            className="w-full rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+            className="w-full rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50"
           >
             {busy ? "Checking…" : "Continue"}
           </button>
         </form>
-        <p className="mt-4 text-center text-xs text-slate-400">
+        <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
           Usernames are case-insensitive. Accounts are created by the admin.
         </p>
       </div>
