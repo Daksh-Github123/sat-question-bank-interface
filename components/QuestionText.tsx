@@ -132,7 +132,7 @@ export default function QuestionText({
     return (
       <div className="space-y-3">
         {intro && <p className={p}>{intro}</p>}
-        {/* Text 1 — indigo accent */}
+        {/* Text 1 — teal (brand) accent */}
         <div className="rounded-lg border border-brand-100 dark:border-brand-900 border-l-4 border-l-brand-500 bg-brand-50/50 dark:bg-brand-950/50 p-4">
           <span className="mb-2 inline-block rounded bg-brand-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
             Text 1
@@ -145,9 +145,9 @@ export default function QuestionText({
           compared with
           <span className="h-px flex-1 bg-slate-200" />
         </div>
-        {/* Text 2 — teal accent */}
-        <div className="rounded-lg border border-teal-200 dark:border-teal-900 border-l-4 border-l-teal-500 bg-teal-50/50 dark:bg-teal-950/50 p-4">
-          <span className="mb-2 inline-block rounded bg-teal-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+        {/* Text 2 — amber accent (distinct from Text 1's teal brand) */}
+        <div className="rounded-lg border border-amber-200 dark:border-amber-900 border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/50 p-4">
+          <span className="mb-2 inline-block rounded bg-amber-600 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
             Text 2
           </span>
           <p className={p}>{renderPassage(t2, ulTarget === 2)}</p>
