@@ -336,11 +336,11 @@ export default function DashboardPage() {
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Questions per day <span className="font-normal text-slate-400 dark:text-slate-500">· last {WINDOW_DAYS} days</span></h2>
-          <DailyBars bars={questionBars} color="#4f46e5" />
+          <DailyBars bars={questionBars} color="#3f07e8" />
         </div>
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Time per day <span className="font-normal text-slate-400 dark:text-slate-500">· minutes</span></h2>
-          <DailyBars bars={minuteBars} color="#0d9488" suffix="m" />
+          <DailyBars bars={minuteBars} color="#c026d3" suffix="m" />
         </div>
       </section>
 

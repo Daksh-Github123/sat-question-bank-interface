@@ -14,7 +14,7 @@ export interface DayBar {
  */
 export default function DailyBars({
   bars,
-  color = "#4f46e5",
+  color = "#3f07e8",
   suffix = "",
 }: {
   bars: DayBar[];

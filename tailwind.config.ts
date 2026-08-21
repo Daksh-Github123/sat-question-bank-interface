@@ -11,22 +11,21 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Full indigo ramp. Previously only 50/100/500/600/700 were defined, but
-        // components already referenced brand-200/800 (which rendered as nothing);
-        // the 200/300/400/800/900 shades below fix that. This is placeholder branding
-        // — swap the whole ramp when the real palette lands.
+        // Brand ramp = electric violet, anchored at #3f07e8 (the 600 step). Drives
+        // every `brand-*` class app-wide (light + dark). Emerald stays the separate
+        // semantic "correct" color; rose stays "wrong".
         brand: {
-          50: "#eef2ff",
-          100: "#e0e7ff",
-          200: "#c7d2fe",
-          300: "#a5b4fc",
-          400: "#818cf8",
-          500: "#6366f1",
-          600: "#4f46e5",
-          700: "#4338ca",
-          800: "#3730a3",
-          900: "#312e81",
-          950: "#1e1b4b",
+          50: "#f2eefe",
+          100: "#e6dcfd",
+          200: "#cebdfc",
+          300: "#ac92fa",
+          400: "#875cf6",
+          500: "#6835f0",
+          600: "#3f07e8",
+          700: "#3506c2",
+          800: "#2c0a9b",
+          900: "#260d7b",
+          950: "#17063f",
         },
       },
     },
