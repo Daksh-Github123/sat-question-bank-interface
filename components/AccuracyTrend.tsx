@@ -40,15 +40,15 @@ export default function AccuracyTrend({ points }: { points: TrendPoint[] }) {
             <text x={pad.l - 6} y={y(g) + 3} textAnchor="end" fontSize={10} fill="#94a3b8">{g}%</text>
           </g>
         ))}
-        <path d={area} fill="#0d9488" fillOpacity={0.08} />
-        <path d={line} fill="none" stroke="#0d9488" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <path d={area} fill="#3f07e8" fillOpacity={0.08} />
+        <path d={line} fill="none" stroke="#3f07e8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {points.map((p, i) => (
-          <circle key={i} cx={x(i)} cy={y(p.accuracy)} r={3.5} fill="#0d9488">
+          <circle key={i} cx={x(i)} cy={y(p.accuracy)} r={3.5} fill="#3f07e8">
             <title>{`${p.label}: ${Math.round(p.accuracy)}% (${p.total} question${p.total === 1 ? "" : "s"})`}</title>
           </circle>
         ))}
         {/* direct-label latest */}
-        <text x={x(n - 1)} y={y(last.accuracy) - 8} textAnchor="end" fontSize={11} fontWeight={700} fill="#0f766e">
+        <text x={x(n - 1)} y={y(last.accuracy) - 8} textAnchor="end" fontSize={11} fontWeight={700} fill="#3506c2">
           {Math.round(last.accuracy)}%
         </text>
         {/* first & last date labels */}
