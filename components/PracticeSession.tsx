@@ -13,6 +13,7 @@ import { saveTerm, sentenceFor } from "@/lib/vocab";
 import { reportQuestion } from "@/lib/reports";
 import { lookup as dictionaryLookup } from "@/lib/dictionary";
 import VocabCapture from "./VocabCapture";
+import HighlightCapture from "./HighlightCapture";
 import QuestionText from "./QuestionText";
 
 interface Props {
@@ -58,6 +59,8 @@ export default function PracticeSession({
   const [index, setIndex] = useState(startIndex);
   const [selected, setSelected] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
+  // Transient passage highlights (study aid) for the current question only.
+  const [highlights, setHighlights] = useState<string[]>([]);
   const [elapsed, setElapsed] = useState(0);
   const [answers, setAnswers] = useState<Recorded[]>([]);
   const [attemptId, setAttemptId] = useState<string | null>(null);
@@ -111,6 +114,12 @@ export default function PracticeSession({
   }, [sessionId, paused, sessionSeconds]);
 
   const q = questions[index];
+
+  // Highlights are per-question; clear them when moving to a new question.
+  useEffect(() => {
+    setHighlights([]);
+  }, [index]);
+  const addHighlight = (t: string) => setHighlights((h) => (h.includes(t) ? h : [...h, t]));
   const isLast = index === questions.length - 1;
 
   // Load persisted flags/notes for this session's questions.
@@ -720,6 +729,7 @@ export default function PracticeSession({
             </button>
           </div>
         ) : (
+          <HighlightCapture enabled={!revealed} onHighlight={addHighlight}>
           <VocabCapture enabled={revealed} onSave={(t) => addVocab(q, t)}>
         {q.graph_url && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -729,7 +739,20 @@ export default function PracticeSession({
             className="mb-4 max-w-full rounded-lg border border-slate-200 dark:border-slate-800"
           />
         )}
-        <QuestionText text={q.question_text} underlineSpans={q.underline_spans} className="text-[15px] leading-relaxed text-slate-800 dark:text-slate-100" />
+        {!revealed && (
+          <div className="mb-2 flex items-center justify-between text-xs text-slate-400 dark:text-slate-500">
+            <span>Tip: select any text in the passage to highlight it.</span>
+            {highlights.length > 0 && (
+              <button
+                onClick={() => setHighlights([])}
+                className="font-medium hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                Clear highlights
+              </button>
+            )}
+          </div>
+        )}
+        <QuestionText text={q.question_text} underlineSpans={q.underline_spans} highlightSpans={!revealed ? highlights : null} className="text-[15px] leading-relaxed text-slate-800 dark:text-slate-100" />
 
         <div className="mt-5 space-y-2">
           {q.choices ? (
@@ -806,6 +829,7 @@ export default function PracticeSession({
           )}
         </div>
           </VocabCapture>
+          </HighlightCapture>
         )}
 
         <div className="mt-5 flex items-center justify-between">

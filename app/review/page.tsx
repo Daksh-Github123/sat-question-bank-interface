@@ -36,10 +36,18 @@ export default function ReviewPage() {
   const [reason, setReason] = useState("");
   const [dueOnly, setDueOnly] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Render only a slice at a time so the page paints fast even with many mistakes.
+  const PAGE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE);
 
   useEffect(() => {
     load();
   }, []);
+
+  // Start each filter view small again.
+  useEffect(() => {
+    setVisibleCount(PAGE);
+  }, [skill, difficulty, reason, dueOnly]);
 
   async function load() {
     setLoading(true);
@@ -157,10 +165,12 @@ export default function ReviewPage() {
             </label>
           </div>
 
-          <p className="text-xs text-slate-400 dark:text-slate-500">{filtered.length} shown</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Showing {Math.min(visibleCount, filtered.length)} of {filtered.length}
+          </p>
 
           <div className="space-y-3">
-            {filtered.map((item) => {
+            {filtered.slice(0, visibleCount).map((item) => {
               const q = item.question;
               const open = expanded === item.attemptId;
               return (
@@ -240,6 +250,17 @@ export default function ReviewPage() {
               );
             })}
           </div>
+
+          {filtered.length > visibleCount && (
+            <div className="flex justify-center pt-1">
+              <button
+                onClick={() => setVisibleCount((c) => c + PAGE)}
+                className="rounded-md border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Load {Math.min(PAGE, filtered.length - visibleCount)} more
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
