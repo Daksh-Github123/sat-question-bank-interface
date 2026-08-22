@@ -9,23 +9,37 @@ import { underlineRanges } from "@/lib/underline";
 // Underlining: when `underlineSpans` (exact text captured from the source PDF) is
 // provided, those spans are underlined precisely. Otherwise we fall back to a
 // heuristic for claim/conclusion-style prompts (see below).
+//
+// Highlighting: `highlightSpans` are transient user highlights applied while
+// answering. Both marks are rendered together — a character can be underlined
+// and/or highlighted.
 
-// Wrap the given character ranges of `text` in an underline.
-function withRanges(text: string, ranges: [number, number][]): React.ReactNode {
-  if (!ranges.length) return text;
-  const u = "underline decoration-2 underline-offset-2";
+const U_CLASS = "underline decoration-2 underline-offset-2";
+const H_CLASS = "rounded-sm bg-yellow-200 dark:bg-yellow-400/30";
+
+// Render `text` with underline ranges and highlight ranges applied together.
+// Splits at every range boundary so each segment is uniformly (un)marked.
+function renderMarked(
+  text: string,
+  uRanges: [number, number][],
+  hRanges: [number, number][]
+): React.ReactNode {
+  if (!uRanges.length && !hRanges.length) return text;
+  const pts = new Set<number>([0, text.length]);
+  for (const [s, e] of uRanges) { pts.add(s); pts.add(e); }
+  for (const [s, e] of hRanges) { pts.add(s); pts.add(e); }
+  const bounds = Array.from(pts).sort((a, b) => a - b);
+  const inRange = (ranges: [number, number][], pos: number) =>
+    ranges.some(([s, e]) => pos >= s && pos < e);
   const parts: React.ReactNode[] = [];
-  let cursor = 0;
-  ranges.forEach(([s, e], i) => {
-    if (s > cursor) parts.push(text.slice(cursor, s));
-    parts.push(
-      <span key={i} className={u}>
-        {text.slice(s, e)}
-      </span>
-    );
-    cursor = e;
-  });
-  if (cursor < text.length) parts.push(text.slice(cursor));
+  for (let i = 0; i < bounds.length - 1; i++) {
+    const a = bounds[i];
+    const b = bounds[i + 1];
+    if (a >= b) continue;
+    const seg = text.slice(a, b);
+    const cls = `${inRange(uRanges, a) ? U_CLASS : ""} ${inRange(hRanges, a) ? H_CLASS : ""}`.trim();
+    parts.push(cls ? <span key={i} className={cls}>{seg}</span> : seg);
+  }
   return <>{parts}</>;
 }
 
@@ -93,13 +107,19 @@ export default function QuestionText({
   text,
   className = "",
   underlineSpans = null,
+  highlightSpans = null,
 }: {
   text: string;
   className?: string;
   underlineSpans?: string[] | null;
+  highlightSpans?: string[] | null;
 }) {
   const p = `whitespace-pre-wrap ${className}`;
   const hasSpans = !!(underlineSpans && underlineSpans.length);
+  const hasHl = !!(highlightSpans && highlightSpans.length);
+  // Underline + highlight ranges for a block of text.
+  const uR = (t: string) => (hasSpans ? underlineRanges(t, underlineSpans) : []);
+  const hR = (t: string) => (hasHl ? underlineRanges(t, highlightSpans) : []);
   const i1 = text.indexOf("Text 1");
   const i2 = i1 >= 0 ? text.indexOf("Text 2", i1 + 6) : -1;
 
@@ -121,12 +141,12 @@ export default function QuestionText({
       const um = prompt.match(/underlined[\s\S]{0,40}?\bText\s*([12])\b/i);
       ulTarget = um ? parseInt(um[1], 10) : 1;
     }
-    // Prefer exact PDF-captured spans; otherwise fall back to the assertion heuristic.
+    // Prefer exact PDF-captured spans; otherwise fall back to the assertion
+    // heuristic. User highlights are layered in via renderMarked either way.
     const renderPassage = (passage: string, heuristicOn: boolean): React.ReactNode => {
-      if (hasSpans) {
-        const r = underlineRanges(passage, underlineSpans);
-        return r.length ? withRanges(passage, r) : passage;
-      }
+      const u = uR(passage);
+      const h = hR(passage);
+      if (u.length || h.length) return renderMarked(passage, u, h);
       return passageBody(passage, heuristicOn);
     };
     return (
@@ -154,17 +174,18 @@ export default function QuestionText({
         </div>
         {prompt && (
           <p className={`${p} border-t border-slate-200 dark:border-slate-800 pt-3 font-medium text-slate-800 dark:text-slate-100`}>
-            {hasSpans ? withRanges(prompt, underlineRanges(prompt, underlineSpans)) : prompt}
+            {renderMarked(prompt, uR(prompt), hR(prompt))}
           </p>
         )}
       </div>
     );
   }
 
-  // Exact underline spans captured from the source PDF take precedence.
-  if (hasSpans) {
-    const r = underlineRanges(text, underlineSpans);
-    if (r.length) return <p className={p}>{withRanges(text, r)}</p>;
+  // Exact underline spans and/or user highlights take precedence.
+  {
+    const u = uR(text);
+    const h = hR(text);
+    if (u.length || h.length) return <p className={p}>{renderMarked(text, u, h)}</p>;
   }
 
   // Single-passage questions referencing "the underlined claim/…": re-underline

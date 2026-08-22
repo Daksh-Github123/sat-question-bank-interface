@@ -105,6 +105,7 @@ export default function ReportsPage() {
     noted: false,
     fast: false,
     slow: false,
+    all: false,
   });
   const [fastSec, setFastSec] = useState(15);
   const [slowSec, setSlowSec] = useState(30);
@@ -239,27 +240,30 @@ export default function ReportsPage() {
     }
 
     if (inc.difficulty) {
-      const byDiff = new Map<string, { total: number; correct: number }>();
+      const byDiff = new Map<string, { total: number; correct: number; sec: number }>();
       for (const r of rows) {
-        const g = byDiff.get(r.question!.difficulty) || { total: 0, correct: 0 };
+        const g = byDiff.get(r.question!.difficulty) || { total: 0, correct: 0, sec: 0 };
         g.total++;
         if (r.is_correct) g.correct++;
+        g.sec += r.time_spent_seconds;
         byDiff.set(r.question!.difficulty, g);
       }
       lines.push(`BY DIFFICULTY`);
       ["Easy", "Medium", "Hard"].filter((d) => diffFilter.has(d)).forEach((d) => {
-        const g = byDiff.get(d) || { total: 0, correct: 0 };
-        lines.push(`- ${d}: ${g.correct}/${g.total} (${pct(g.correct, g.total)}%)`);
+        const g = byDiff.get(d) || { total: 0, correct: 0, sec: 0 };
+        const avg = g.total ? Math.round(g.sec / g.total) : 0;
+        lines.push(`- ${d}: ${g.correct}/${g.total} (${pct(g.correct, g.total)}%) · avg ${avg}s/q`);
       });
       lines.push(``);
     }
 
     if (inc.skill) {
-      const bySkill = new Map<string, { total: number; correct: number; last: string }>();
+      const bySkill = new Map<string, { total: number; correct: number; last: string; sec: number }>();
       for (const r of rows) {
-        const g = bySkill.get(r.question!.skill) || { total: 0, correct: 0, last: r.created_at };
+        const g = bySkill.get(r.question!.skill) || { total: 0, correct: 0, last: r.created_at, sec: 0 };
         g.total++;
         if (r.is_correct) g.correct++;
+        g.sec += r.time_spent_seconds;
         if (r.created_at > g.last) g.last = r.created_at;
         bySkill.set(r.question!.skill, g);
       }
@@ -268,7 +272,8 @@ export default function ReportsPage() {
         .sort((a, b) => a[1].correct / a[1].total - b[1].correct / b[1].total)
         .forEach(([skill, g]) => {
           const a = pct(g.correct, g.total);
-          lines.push(`- ${skill}: ${g.correct}/${g.total} (${a}%) [${skillStatus(a)}] · last practiced ${g.last.slice(0, 10)}`);
+          const avg = g.total ? Math.round(g.sec / g.total) : 0;
+          lines.push(`- ${skill}: ${g.correct}/${g.total} (${a}%) [${skillStatus(a)}] · avg ${avg}s/q · last practiced ${g.last.slice(0, 10)}`);
         });
       lines.push(``);
     }
@@ -316,6 +321,22 @@ export default function ReportsPage() {
       lines.push(`ANSWERED SLOW — over ${slowSec}s (${slow.length})`);
       if (slow.length === 0) lines.push(`- none`);
       slow.forEach((r) => {
+        lines.push(``);
+        lines.push(...detail(r.question!, `${r.time_spent_seconds}s · ${r.is_correct ? "correct" : "wrong"}`));
+      });
+      lines.push(``);
+    }
+
+    if (inc.all) {
+      // Every attempted question in scope (right or wrong), grouped by skill and
+      // ordered slowest-first within each skill, so time-by-type stands out.
+      const allQ = [...latestList].sort(
+        (a, b) =>
+          a.question!.skill.localeCompare(b.question!.skill) ||
+          b.time_spent_seconds - a.time_spent_seconds
+      );
+      lines.push(`ALL QUESTIONS — by skill, slowest first (${allQ.length})`);
+      allQ.forEach((r) => {
         lines.push(``);
         lines.push(...detail(r.question!, `${r.time_spent_seconds}s · ${r.is_correct ? "correct" : "wrong"}`));
       });
@@ -567,6 +588,7 @@ export default function ReportsPage() {
                   ["noted", "Noted (with notes)"],
                   ["fast", `Answered fast (< ${fastSec}s)`],
                   ["slow", `Answered slow (> ${slowSec}s)`],
+                  ["all", "All questions (with time)"],
                 ] as [keyof typeof inc, string][]
               ).map(([k, label]) => (
                 <label key={k} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">

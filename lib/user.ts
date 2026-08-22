@@ -5,6 +5,7 @@ export interface AppUser {
   username: string;
   display_name: string;
   is_admin?: boolean;
+  email?: string | null;
 }
 
 const KEY = "sat_user";
