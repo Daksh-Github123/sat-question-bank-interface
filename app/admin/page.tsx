@@ -5,15 +5,18 @@ import { supabase } from "@/lib/supabaseClient";
 import { useUser } from "@/lib/userContext";
 import { listReports, deleteReport, type QuestionReport } from "@/lib/reports";
 import { listFeedback, deleteFeedback, type Feedback } from "@/lib/feedback";
+import { createAccount, setPassword, setEmail } from "@/lib/auth";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/ToastProvider";
 import { PageLoader } from "@/components/ui/Spinner";
+import PasswordInput from "@/components/ui/PasswordInput";
 
 interface Row {
   id: string;
   username: string;
   display_name: string;
   is_admin: boolean;
+  email: string | null;
   created_at: string;
   last_login_at: string | null;
 }
@@ -43,13 +46,15 @@ export default function AdminPage() {
   const [reportQCode, setReportQCode] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   const [makeAdmin, setMakeAdmin] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
     const [{ data }, { data: att }, reps, fb] = await Promise.all([
-      supabase.from("users").select("*").order("created_at"),
+      supabase.from("users").select("id, username, display_name, is_admin, email, created_at, last_login_at").order("created_at"),
       supabase.from("attempts").select("user_id").limit(100000),
       listReports(),
       listFeedback(),
@@ -106,20 +111,51 @@ export default function AdminPage() {
       setError("Usernames can only contain letters, numbers, and underscores.");
       return;
     }
-    setBusy(true);
-    setError("");
-    const { error } = await supabase
-      .from("users")
-      .insert({ username: uname, display_name: newName.trim(), is_admin: makeAdmin });
-    setBusy(false);
-    if (error) {
-      setError(error.code === "23505" ? "That username already exists." : error.message);
+    if (!newPassword) {
+      setError("Set a password for the new account.");
       return;
     }
+    setBusy(true);
+    setError("");
+    try {
+      await createAccount({
+        username: uname,
+        displayName: newName.trim(),
+        isAdmin: makeAdmin,
+        password: newPassword,
+        email: newEmail.trim(),
+      });
+    } catch (e: any) {
+      setBusy(false);
+      setError(e?.code === "23505" ? "That username already exists." : e?.message || "Could not create the account.");
+      return;
+    }
+    setBusy(false);
     setNewName("");
+    setNewPassword("");
+    setNewEmail("");
     setMakeAdmin(false);
     await load();
     toast.success(`Account "${uname}" created.`);
+  }
+
+  async function resetPassword(id: string, uname: string) {
+    const pw = window.prompt(`New password for "${uname}":`);
+    if (pw == null) return;
+    if (!pw.trim()) {
+      toast.error("Password can't be empty.");
+      return;
+    }
+    await setPassword(id, pw);
+    toast.success(`Password reset for "${uname}".`);
+  }
+
+  async function editEmail(u: Row) {
+    const email = window.prompt(`Email for "${u.username}":`, u.email || "");
+    if (email == null) return;
+    await setEmail(u.id, email.trim());
+    await load();
+    toast.success(`Email updated for "${u.username}".`);
   }
 
   async function removeUser(id: string, uname: string) {
@@ -153,17 +189,32 @@ export default function AdminPage() {
               className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
             />
           </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Password</span>
+            <PasswordInput value={newPassword} onChange={setNewPassword} className="w-44" aria-label="New account password" />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-slate-600 dark:text-slate-300">Email <span className="font-normal text-slate-400">(optional)</span></span>
+            <input
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="name@example.com"
+              type="email"
+              autoCapitalize="none"
+              className="rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2"
+            />
+          </label>
           <label className="flex items-center gap-2 pb-2 text-sm text-slate-600 dark:text-slate-300">
             <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} className="h-4 w-4" />
             Admin
           </label>
-          <button type="submit" disabled={busy || !newName.trim()} className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50">
+          <button type="submit" disabled={busy || !newName.trim() || !newPassword} className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 dark:hover:bg-brand-600 disabled:opacity-50">
             {busy ? "Creating…" : "Create"}
           </button>
         </form>
         {error && <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
         <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-          Share the username with your friend — they just type it on the login screen (case-insensitive, no password).
+          Share the username and password with your friend (usernames are case-insensitive). They can be reset any time below.
         </p>
       </section>
 
@@ -178,6 +229,7 @@ export default function AdminPage() {
                 <tr>
                   <th className="px-3 py-2 font-medium">Username</th>
                   <th className="px-3 py-2 font-medium">Role</th>
+                  <th className="px-3 py-2 font-medium">Email</th>
                   <th className="px-3 py-2 font-medium">Questions done</th>
                   <th className="px-3 py-2 font-medium">Last login</th>
                   <th className="px-3 py-2 font-medium">Created</th>
@@ -189,15 +241,25 @@ export default function AdminPage() {
                   <tr key={u.id} className="border-b border-slate-100 last:border-0">
                     <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-200">{u.display_name}</td>
                     <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{u.is_admin ? "Admin" : "User"}</td>
+                    <td className="px-3 py-2">
+                      <button onClick={() => editEmail(u)} className="text-left text-slate-600 dark:text-slate-300 hover:underline" title="Edit email">
+                        {u.email || <span className="text-slate-400 dark:text-slate-500">add email</span>}
+                      </button>
+                    </td>
                     <td className="px-3 py-2 text-slate-700 dark:text-slate-200">{counts.get(u.id) || 0}</td>
                     <td className="px-3 py-2 text-slate-500 dark:text-slate-400" title={u.last_login_at || "never"}>{timeAgo(u.last_login_at)}</td>
                     <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{u.created_at.slice(0, 10)}</td>
                     <td className="px-3 py-2 text-right">
-                      {u.id !== user?.id && (
-                        <button onClick={() => removeUser(u.id, u.username)} className="text-xs text-rose-500 dark:text-rose-400 hover:underline">
-                          Delete
+                      <div className="flex justify-end gap-3">
+                        <button onClick={() => resetPassword(u.id, u.username)} className="text-xs text-slate-500 dark:text-slate-400 hover:underline">
+                          Reset password
                         </button>
-                      )}
+                        {u.id !== user?.id && (
+                          <button onClick={() => removeUser(u.id, u.username)} className="text-xs text-rose-500 dark:text-rose-400 hover:underline">
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
