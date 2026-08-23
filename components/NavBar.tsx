@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/lib/userContext";
-import { clearCurrentUser } from "@/lib/user";
+import { signOut } from "@/lib/auth";
 import { APP_NAME } from "@/lib/appMeta";
 import ThemeToggle from "./ThemeToggle";
 import Logo from "./Logo";
@@ -28,8 +28,8 @@ export default function NavBar() {
 
   const links = baseLinks;
 
-  function logout() {
-    clearCurrentUser();
+  async function logout() {
+    await signOut();
     setUser(null);
     router.replace("/login");
   }

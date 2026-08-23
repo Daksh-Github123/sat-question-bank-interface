@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useUser } from "@/lib/userContext";
 import { listReports, deleteReport, type QuestionReport } from "@/lib/reports";
 import { listFeedback, deleteFeedback, type Feedback } from "@/lib/feedback";
-import { createAccount, setPassword, setEmail } from "@/lib/auth";
+import { adminCreateAccount, adminSetPassword, adminSetEmail, adminDeleteUser } from "@/lib/auth";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/ToastProvider";
 import { PageLoader } from "@/components/ui/Spinner";
@@ -53,18 +53,16 @@ export default function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const [{ data }, { data: att }, reps, fb] = await Promise.all([
-      supabase.from("users").select("id, username, display_name, is_admin, email, created_at, last_login_at").order("created_at"),
-      supabase.from("attempts").select("user_id").limit(100000),
+    const [{ data }, reps, fb] = await Promise.all([
+      supabase.rpc("admin_list_users"),
       listReports(),
       listFeedback(),
     ]);
-    setUsers((data as Row[]) || []);
+    const rows = (data as (Row & { question_count: number })[]) || [];
+    setUsers(rows);
     setFeedback(fb);
     const c = new Map<string, number>();
-    for (const a of (att as any[]) || []) {
-      if (a.user_id) c.set(a.user_id, (c.get(a.user_id) || 0) + 1);
-    }
+    for (const u of rows) c.set(u.id, Number(u.question_count) || 0);
     setCounts(c);
     setReports(reps);
     // Resolve question codes for the reported questions.
@@ -118,7 +116,7 @@ export default function AdminPage() {
     setBusy(true);
     setError("");
     try {
-      await createAccount({
+      await adminCreateAccount({
         username: uname,
         displayName: newName.trim(),
         isAdmin: makeAdmin,
@@ -127,7 +125,8 @@ export default function AdminPage() {
       });
     } catch (e: any) {
       setBusy(false);
-      setError(e?.code === "23505" ? "That username already exists." : e?.message || "Could not create the account.");
+      const msg = e?.message || "";
+      setError(e?.code === "23505" || /exists/i.test(msg) ? "That username already exists." : msg || "Could not create the account.");
       return;
     }
     setBusy(false);
@@ -146,14 +145,14 @@ export default function AdminPage() {
       toast.error("Password can't be empty.");
       return;
     }
-    await setPassword(id, pw);
+    await adminSetPassword(id, pw);
     toast.success(`Password reset for "${uname}".`);
   }
 
   async function editEmail(u: Row) {
-    const email = window.prompt(`Email for "${u.username}":`, u.email || "");
+    const email = window.prompt(`Email for "${u.username}" (used for password recovery):`, u.email || "");
     if (email == null) return;
-    await setEmail(u.id, email.trim());
+    await adminSetEmail(u.id, email.trim());
     await load();
     toast.success(`Email updated for "${u.username}".`);
   }
@@ -167,7 +166,7 @@ export default function AdminPage() {
       danger: true,
     });
     if (!ok) return;
-    await supabase.from("users").delete().eq("id", id);
+    await adminDeleteUser(id);
     await load();
     toast.success(`Account "${uname}" deleted.`);
   }

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { storeCurrentUser } from "@/lib/user";
-import { verifyLogin } from "@/lib/auth";
-import { useUser } from "@/lib/userContext";
+import { signInWithUsername } from "@/lib/auth";
 import { APP_NAME, APP_TAGLINE } from "@/lib/appMeta";
 import Logo from "@/components/Logo";
 import PasswordInput from "@/components/ui/PasswordInput";
@@ -15,7 +14,6 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const router = useRouter();
-  const { setUser } = useUser();
 
   async function login(e: React.FormEvent) {
     e.preventDefault();
@@ -23,21 +21,13 @@ export default function LoginPage() {
     if (!uname || !password) return;
     setBusy(true);
     setError("");
-    let user;
-    try {
-      user = await verifyLogin(uname, password);
-    } catch {
-      setBusy(false);
-      setError("Could not reach the server. Please try again.");
-      return;
-    }
+    const res = await signInWithUsername(uname, password);
     setBusy(false);
-    if (!user) {
-      setError("Incorrect username or password.");
+    if (!res.ok) {
+      setError(res.error === "server" ? "Could not reach the server. Please try again." : "Incorrect username or password.");
       return;
     }
-    storeCurrentUser(user);
-    setUser(user);
+    // AuthGate picks up the new session and redirects; nudge it along.
     router.replace("/");
   }
 
@@ -73,6 +63,11 @@ export default function LoginPage() {
             {busy ? "Checking…" : "Continue"}
           </button>
         </form>
+        <p className="mt-3 text-center text-xs">
+          <Link href="/forgot" className="text-brand-600 hover:underline dark:text-brand-300">
+            Forgot password?
+          </Link>
+        </p>
         <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
           Usernames are case-insensitive. Accounts are created by the admin.
         </p>

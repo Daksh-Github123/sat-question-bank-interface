@@ -1,5 +1,9 @@
 "use client";
 
+// The signed-in user's profile, cached in memory once AuthGate resolves the
+// Supabase Auth session → profile. Kept synchronous so the ~20 call sites that
+// read currentUserId() inline in queries don't need to change.
+
 export interface AppUser {
   id: string;
   username: string;
@@ -8,27 +12,18 @@ export interface AppUser {
   email?: string | null;
 }
 
-const KEY = "sat_user";
+let _cached: AppUser | null = null;
+
+/** Set/replace the cached profile (called by AuthGate on auth state changes). */
+export function setCachedUser(u: AppUser | null) {
+  _cached = u;
+}
 
 export function getCurrentUser(): AppUser | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const s = localStorage.getItem(KEY);
-    return s ? (JSON.parse(s) as AppUser) : null;
-  } catch {
-    return null;
-  }
+  return _cached;
 }
 
-export function storeCurrentUser(u: AppUser) {
-  localStorage.setItem(KEY, JSON.stringify(u));
-}
-
-export function clearCurrentUser() {
-  localStorage.removeItem(KEY);
-}
-
-/** The current user's id, or null if not logged in. */
+/** The current user's profile id, or null if not signed in. */
 export function currentUserId(): string | null {
-  return getCurrentUser()?.id ?? null;
+  return _cached?.id ?? null;
 }

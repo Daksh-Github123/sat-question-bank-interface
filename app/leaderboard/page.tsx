@@ -42,67 +42,32 @@ function fmtTime(s: number) {
 }
 
 export default function LeaderboardPage() {
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
-  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState<SortKey>("accuracy");
   const me = currentUserId();
 
   useEffect(() => {
     (async () => {
-      const [u, a, s] = await Promise.all([
-        supabase.from("users").select("id, username, display_name"),
-        supabase.from("attempts").select("user_id, is_correct, time_spent_seconds, session_id").limit(100000),
-        supabase.from("practice_sessions").select("id, user_id, active_seconds").limit(20000),
-      ]);
-      setUsers((u.data as UserRow[]) || []);
-      setAttempts((a.data as AttemptRow[]) || []);
-      setSessions((s.data as SessionRow[]) || []);
+      // Aggregates come from a SECURITY DEFINER RPC so per-user row security can
+      // stay strict while everyone still sees the ranking.
+      const { data } = await supabase.rpc("leaderboard");
+      const rows: Entry[] = ((data as any[]) || []).map((r) => {
+        const questions = Number(r.questions) || 0;
+        const correct = Number(r.correct) || 0;
+        return {
+          id: r.user_id as string,
+          name: (r.name as string) || "Unknown",
+          questions,
+          correct,
+          accuracy: questions ? Math.round((correct / questions) * 100) : 0,
+          seconds: Number(r.seconds) || 0,
+        };
+      });
+      setEntries(rows);
       setLoading(false);
     })();
   }, []);
-
-  const entries = useMemo(() => {
-    // Per-user answered count + correct.
-    const stat = new Map<string, { q: number; correct: number }>();
-    // Per-session question time (for the time metric fallback) + per-user sessionless time.
-    const qSecBySession = new Map<string, number>();
-    const sessionlessByUser = new Map<string, number>();
-    for (const a of attempts) {
-      if (!a.user_id) continue;
-      const g = stat.get(a.user_id) || { q: 0, correct: 0 };
-      g.q++;
-      if (a.is_correct) g.correct++;
-      stat.set(a.user_id, g);
-      if (a.session_id) qSecBySession.set(a.session_id, (qSecBySession.get(a.session_id) || 0) + a.time_spent_seconds);
-      else sessionlessByUser.set(a.user_id, (sessionlessByUser.get(a.user_id) || 0) + a.time_spent_seconds);
-    }
-    // Time practiced per user: per session max(active, summed question time), plus
-    // sessionless attempt time — same basis as the dashboard's Total time.
-    const timeByUser = new Map<string, number>();
-    for (const s of sessions) {
-      if (!s.user_id) continue;
-      const q = qSecBySession.get(s.id) || 0;
-      timeByUser.set(s.user_id, (timeByUser.get(s.user_id) || 0) + Math.max(s.active_seconds || 0, q));
-    }
-    for (const [uid, sec] of sessionlessByUser) timeByUser.set(uid, (timeByUser.get(uid) || 0) + sec);
-
-    const nameById = new Map(users.map((u) => [u.id, u.display_name || u.username]));
-    const rows: Entry[] = [];
-    for (const [uid, g] of stat) {
-      if (g.q === 0) continue;
-      rows.push({
-        id: uid,
-        name: nameById.get(uid) || "Unknown",
-        questions: g.q,
-        correct: g.correct,
-        accuracy: Math.round((g.correct / g.q) * 100),
-        seconds: timeByUser.get(uid) || 0,
-      });
-    }
-    return rows;
-  }, [users, attempts, sessions]);
 
   const ranked = useMemo(() => {
     const rows = [...entries];
