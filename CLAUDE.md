@@ -81,10 +81,15 @@ questions*, so avoid the word "exam" in copy.
 
 ## Pending / follow-ups
 - **User must test login + signup on the preview** before any production cutover.
-- After login confirmed on preview → merge auth branch to production, THEN apply the **RLS
-  lockdown** migration (per-user policies on attempts/practice_sessions/question_state/vocabulary;
-  cross-user reads already moved to SECURITY DEFINER RPCs). RLS is still permissive (`USING true`)
-  in production until then — do not tighten before the auth client is live.
+- **RLS lockdown is STAGED, not applied** → `supabase/migrations/20260825120000_rls_lockdown.sql`
+  (per-user policies on attempts/practice_sessions/question_state/vocabulary; submit-only
+  feedback/question_reports; questions read-all/admin-write; users select-own/admin; drops the
+  obsolete ungated round-1 RPCs verify_login/create_account/set_password/set_email; revokes API
+  execute on internal_create_auth_user/handle_new_user). Cross-user reads already go through
+  SECURITY DEFINER RPCs (leaderboard, admin_list_users). **Apply ONLY after** the auth branch is
+  live on production and login is verified there — preview + prod share one DB, so applying early
+  locks out the still-on-localStorage production users. RLS is permissive (`USING true`) until then.
+- Supabase dashboard: enable "leaked password protection" (Auth → Providers → Email).
 - User Supabase settings (surface, not code): Auth → URL Configuration (site + `…/reset` URLs);
   Auth → Email → turn OFF "Confirm email"; optional SMTP for reliable reset emails.
 
