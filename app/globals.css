@@ -39,3 +39,73 @@ body {
     content: "";
   }
 }
+
+/* ---- Motion system (scroll reveals, hover, animated auth) ---- */
+@layer utilities {
+  /* Scroll reveal: hidden until the Reveal component adds .is-visible. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Lift + subtle scale on hover for cards/interactive surfaces. */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 10px 24px -12px rgb(15 23 42 / 0.25);
+  }
+  .hover-lift:active {
+    transform: translateY(-1px) scale(1.0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-pop-in {
+  animation: pop-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Slowly drifting blurred blobs behind the auth card. */
+@keyframes float-blob {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(24px, -30px) scale(1.08); }
+  66% { transform: translate(-20px, 20px) scale(0.96); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+.animate-blob {
+  animation: float-blob 18s ease-in-out infinite;
+}
+
+/* Respect users who prefer reduced motion: no reveals, no drift, no lift. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .hover-lift:hover,
+  .hover-lift:active {
+    transform: none !important;
+  }
+  .animate-pop-in,
+  .animate-blob {
+    animation: none !important;
+  }
+}

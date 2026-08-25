@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { storeCurrentUser } from "@/lib/user";
-import { verifyLogin } from "@/lib/auth";
-import { useUser } from "@/lib/userContext";
-import { APP_NAME, APP_TAGLINE } from "@/lib/appMeta";
-import Logo from "@/components/Logo";
+import { signInWithUsername } from "@/lib/auth";
+import { APP_TAGLINE } from "@/lib/appMeta";
+import AuthShell from "@/components/AuthShell";
 import PasswordInput from "@/components/ui/PasswordInput";
 
 export default function LoginPage() {
@@ -15,7 +14,6 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const router = useRouter();
-  const { setUser } = useUser();
 
   async function login(e: React.FormEvent) {
     e.preventDefault();
@@ -23,35 +21,18 @@ export default function LoginPage() {
     if (!uname || !password) return;
     setBusy(true);
     setError("");
-    let user;
-    try {
-      user = await verifyLogin(uname, password);
-    } catch {
-      setBusy(false);
-      setError("Could not reach the server. Please try again.");
-      return;
-    }
+    const res = await signInWithUsername(uname, password);
     setBusy(false);
-    if (!user) {
-      setError("Incorrect username or password.");
+    if (!res.ok) {
+      setError(res.error === "server" ? "Could not reach the server. Please try again." : "Incorrect username or password.");
       return;
     }
-    storeCurrentUser(user);
-    setUser(user);
+    // AuthGate picks up the new session and redirects; nudge it along.
     router.replace("/");
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
-        <div className="flex justify-center text-brand-600 dark:text-brand-300">
-          <Logo size={40} />
-        </div>
-        <h1 className="mt-2 text-center text-xl font-bold text-brand-600 dark:text-brand-300">{APP_NAME}</h1>
-        <p className="mt-1 text-center text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          {APP_TAGLINE}
-        </p>
-        <p className="mt-3 text-center text-sm text-slate-500 dark:text-slate-400">Sign in to continue</p>
+    <AuthShell heading="Sign in to continue" tagline={APP_TAGLINE}>
         <form onSubmit={login} className="mt-6 space-y-3">
           <input
             autoFocus
@@ -73,10 +54,17 @@ export default function LoginPage() {
             {busy ? "Checking…" : "Continue"}
           </button>
         </form>
-        <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
-          Usernames are case-insensitive. Accounts are created by the admin.
+        <p className="mt-3 text-center text-xs">
+          <Link href="/forgot" className="text-brand-600 hover:underline dark:text-brand-300">
+            Forgot password?
+          </Link>
         </p>
-      </div>
-    </div>
+        <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">
+          New here?{" "}
+          <Link href="/signup" className="font-medium text-brand-600 hover:underline dark:text-brand-300">
+            Create an account
+          </Link>
+        </p>
+    </AuthShell>
   );
 }

@@ -10,5 +10,9 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_KEY;
 
 export const supabase = createClient(url, key, {
-  auth: { persistSession: false },
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
 });

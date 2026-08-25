@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/lib/userContext";
-import { clearCurrentUser } from "@/lib/user";
+import { signOut } from "@/lib/auth";
 import { APP_NAME } from "@/lib/appMeta";
 import ThemeToggle from "./ThemeToggle";
 import Logo from "./Logo";
@@ -28,10 +28,10 @@ export default function NavBar() {
 
   const links = baseLinks;
 
-  function logout() {
-    clearCurrentUser();
+  async function logout() {
+    await signOut();
     setUser(null);
-    router.replace("/login");
+    router.replace("/"); // back to the public landing, not the login box
   }
 
   function submitSearch(e: React.FormEvent) {
@@ -55,7 +55,7 @@ export default function NavBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur print:hidden dark:border-slate-800 dark:bg-slate-900/95">
       <nav className="mx-auto flex max-w-5xl items-center gap-1 px-4 py-3">
-        <Link href="/" className="mr-2 flex items-center gap-1.5 text-lg font-bold text-brand-600 dark:text-brand-300">
+        <Link href="/home" className="mr-2 flex items-center gap-1.5 text-lg font-bold text-brand-600 dark:text-brand-300">
           <Logo size={22} />
           {APP_NAME}
         </Link>
