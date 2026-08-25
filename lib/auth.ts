@@ -31,6 +31,68 @@ export async function fetchProfile(authId: string): Promise<AppUser | null> {
   return (data as AppUser) ?? null;
 }
 
+/** Check whether a username is free (public signup helper). */
+export async function isUsernameAvailable(username: string): Promise<boolean> {
+  const u = username.trim();
+  if (!u) return false;
+  const { data, error } = await supabase.rpc("username_available", { p_username: u });
+  if (error) throw error;
+  return data === true;
+}
+
+/**
+ * Open registration: create an auth user and its linked profile.
+ * Returns { ok } or a friendly error kind. Requires "Confirm email" to be OFF
+ * in Supabase so signUp returns a session immediately.
+ */
+export async function signUp(
+  username: string,
+  email: string,
+  password: string,
+  displayName?: string
+): Promise<{ ok: boolean; error?: "username_taken" | "email_taken" | "no_session" | "server" }> {
+  const uname = username.trim();
+  const display = (displayName ?? "").trim() || uname;
+
+  // Pre-check the username so we fail fast before creating an auth user.
+  try {
+    if (!(await isUsernameAvailable(uname))) return { ok: false, error: "username_taken" };
+  } catch {
+    return { ok: false, error: "server" };
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: { data: { username: uname, display_name: display } },
+  });
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("registered") || msg.includes("already")) return { ok: false, error: "email_taken" };
+    return { ok: false, error: "server" };
+  }
+
+  // With email confirmation off, a session is returned right away.
+  if (!data.session) return { ok: false, error: "no_session" };
+
+  // The handle_new_user trigger creates the profile; call create_my_profile too
+  // (idempotent) so a friendly username_taken surfaces if the trigger was skipped.
+  const { error: pErr } = await supabase.rpc("create_my_profile", {
+    p_username: uname,
+    p_display_name: display,
+  });
+  if (pErr) {
+    if ((pErr.message || "").toLowerCase().includes("username_taken")) {
+      await supabase.auth.signOut();
+      return { ok: false, error: "username_taken" };
+    }
+    // Profile may already exist via the trigger — verify before failing.
+    const profile = await fetchProfile(data.session.user.id);
+    if (!profile) return { ok: false, error: "server" };
+  }
+  return { ok: true };
+}
+
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
 }

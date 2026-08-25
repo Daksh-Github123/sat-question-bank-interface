@@ -14,12 +14,14 @@ import CookieBanner from "./CookieBanner";
 import ToastProvider from "./ui/ToastProvider";
 import ConfirmProvider from "./ui/ConfirmDialog";
 
-const AUTH_PAGES = ["/login", "/forgot", "/reset"];
+// Pages that never require a session and render "bare" (no app shell).
+const AUTH_PAGES = ["/login", "/forgot", "/reset", "/signup"];
 
 /**
- * Client gate: requires a Supabase Auth session for every page except the auth
- * pages (login / forgot / reset). Loads the linked profile and provides it via
- * context, caching it so currentUserId() stays synchronous elsewhere.
+ * Client gate. A Supabase Auth session is required for every page except the
+ * auth pages (login / signup / forgot / reset) and the logged-out landing at "/".
+ * Loads the linked profile and provides it via context, caching it so
+ * currentUserId() stays synchronous elsewhere.
  */
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   // undefined = still resolving session; null = signed out
@@ -48,24 +50,29 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isAuthPage = AUTH_PAGES.includes(pathname);
+  // Logged-out visitors may see the landing at "/"; logged-in "/" shows the dashboard.
+  const isLanding = pathname === "/" && !user;
+  const bare = isAuthPage || isLanding;
 
   useEffect(() => {
     if (user === undefined) return;
-    if (!user && !isAuthPage) router.replace("/login");
-    if (user && pathname === "/login") router.replace("/");
+    // Protected page without a session → login (the landing at "/" is public).
+    if (!user && !isAuthPage && pathname !== "/") router.replace("/login");
+    // Signed in but sitting on an auth page → home.
+    if (user && isAuthPage) router.replace("/");
   }, [user, pathname, isAuthPage, router]);
 
   if (user === undefined) {
     return <div className="p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>;
   }
 
-  if (!user && !isAuthPage) return null; // redirecting
+  if (!user && !isAuthPage && pathname !== "/") return null; // redirecting
 
   return (
     <UserContext.Provider value={{ user: user ?? null, setUser }}>
       <ToastProvider>
         <ConfirmProvider>
-          {isAuthPage ? (
+          {bare ? (
             children
           ) : (
             <div className="flex min-h-screen flex-col">

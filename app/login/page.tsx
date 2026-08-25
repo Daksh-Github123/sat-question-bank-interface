@@ -59,8 +59,11 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </p>
-        <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
-          Usernames are case-insensitive. Accounts are created by the admin.
+        <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">
+          New here?{" "}
+          <Link href="/signup" className="font-medium text-brand-600 hover:underline dark:text-brand-300">
+            Create an account
+          </Link>
         </p>
     </AuthShell>
   );
