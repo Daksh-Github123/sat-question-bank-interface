@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { useUser } from "@/lib/userContext";
 import { APP_NAME, APP_TAGLINE } from "@/lib/appMeta";
 import Logo from "./Logo";
 import Reveal from "./Reveal";
@@ -65,6 +66,7 @@ const STEPS = [
 ];
 
 export default function Landing() {
+  const { user } = useUser();
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
@@ -94,18 +96,29 @@ export default function Landing() {
             <a href="#mission" className="hover:text-brand-600 dark:hover:text-brand-300">Why Pace</a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Link
-              href="/login"
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="hover-lift rounded-md bg-brand-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              Get started
-            </Link>
+            {user ? (
+              <Link
+                href="/"
+                className="hover-lift rounded-md bg-brand-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
+              >
+                Go to app
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="hover-lift rounded-md bg-brand-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
+                >
+                  Get started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -143,18 +156,29 @@ export default function Landing() {
           </Reveal>
           <Reveal delay={240}>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href="/signup"
-                className="hover-lift rounded-lg bg-brand-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700"
-              >
-                Get started — it&apos;s free
-              </Link>
-              <Link
-                href="/login"
-                className="rounded-lg border border-slate-300 px-6 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
-              >
-                Sign in
-              </Link>
+              {user ? (
+                <Link
+                  href="/"
+                  className="hover-lift rounded-lg bg-brand-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700"
+                >
+                  Go to your dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/signup"
+                    className="hover-lift rounded-lg bg-brand-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700"
+                  >
+                    Get started — it&apos;s free
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="rounded-lg border border-slate-300 px-6 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                  >
+                    Sign in
+                  </Link>
+                </>
+              )}
             </div>
           </Reveal>
         </div>
@@ -250,15 +274,17 @@ export default function Landing() {
           </Reveal>
           <Reveal delay={100}>
             <p className="mx-auto mt-4 max-w-lg text-lg text-slate-600 dark:text-slate-300">
-              Create a free account and start working through real questions in minutes.
+              {user
+                ? "Jump back into your practice and keep your streak going."
+                : "Create a free account and start working through real questions in minutes."}
             </p>
           </Reveal>
           <Reveal delay={180}>
             <Link
-              href="/signup"
+              href={user ? "/" : "/signup"}
               className="hover-lift mt-8 inline-block rounded-lg bg-brand-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700"
             >
-              Get started
+              {user ? "Go to your dashboard" : "Get started"}
             </Link>
           </Reveal>
         </div>
@@ -274,7 +300,9 @@ export default function Landing() {
           <div className="flex items-center gap-5">
             <Link href="/faq" className="hover:text-brand-600 dark:hover:text-brand-300">FAQ</Link>
             <Link href="/privacy" className="hover:text-brand-600 dark:hover:text-brand-300">Privacy</Link>
-            <Link href="/login" className="hover:text-brand-600 dark:hover:text-brand-300">Sign in</Link>
+            <Link href={user ? "/" : "/login"} className="hover:text-brand-600 dark:hover:text-brand-300">
+              {user ? "Dashboard" : "Sign in"}
+            </Link>
           </div>
         </div>
       </footer>

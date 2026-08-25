@@ -50,23 +50,28 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isAuthPage = AUTH_PAGES.includes(pathname);
+  // The marketing homepage is public and bare for everyone (signed in or out) — the
+  // Pace logo points here, so signed-in visitors must NOT be bounced away.
+  const isMarketingHome = pathname === "/home";
   // Logged-out visitors may see the landing at "/"; logged-in "/" shows the dashboard.
   const isLanding = pathname === "/" && !user;
-  const bare = isAuthPage || isLanding;
+  // Any page reachable without a session (so we don't redirect to /login).
+  const isPublic = isAuthPage || isMarketingHome || pathname === "/";
+  const bare = isAuthPage || isLanding || isMarketingHome;
 
   useEffect(() => {
     if (user === undefined) return;
-    // Protected page without a session → login (the landing at "/" is public).
-    if (!user && !isAuthPage && pathname !== "/") router.replace("/login");
+    // Protected page without a session → login.
+    if (!user && !isPublic) router.replace("/login");
     // Signed in but sitting on an auth page → home.
     if (user && isAuthPage) router.replace("/");
-  }, [user, pathname, isAuthPage, router]);
+  }, [user, isPublic, isAuthPage, router]);
 
   if (user === undefined) {
     return <div className="p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>;
   }
 
-  if (!user && !isAuthPage && pathname !== "/") return null; // redirecting
+  if (!user && !isPublic) return null; // redirecting
 
   return (
     <UserContext.Provider value={{ user: user ?? null, setUser }}>
