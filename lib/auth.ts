@@ -50,7 +50,7 @@ export async function signUp(
   email: string,
   password: string,
   displayName?: string
-): Promise<{ ok: boolean; error?: "username_taken" | "email_taken" | "no_session" | "server" }> {
+): Promise<{ ok: boolean; needsConfirmation?: boolean; error?: "username_taken" | "email_taken" | "server" }> {
   const uname = username.trim();
   const display = (displayName ?? "").trim() || uname;
 
@@ -64,7 +64,11 @@ export async function signUp(
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
-    options: { data: { username: uname, display_name: display } },
+    options: {
+      data: { username: uname, display_name: display },
+      // Where the confirmation link returns to (→ dashboard once the session lands).
+      emailRedirectTo: `${window.location.origin}/`,
+    },
   });
   if (error) {
     const msg = error.message.toLowerCase();
@@ -72,11 +76,14 @@ export async function signUp(
     return { ok: false, error: "server" };
   }
 
-  // With email confirmation off, a session is returned right away.
-  if (!data.session) return { ok: false, error: "no_session" };
+  // With "Confirm email" ON, signUp returns no session — the user must click the
+  // emailed link first. The handle_new_user trigger has already created the profile,
+  // so nothing else to do here; the signup page routes them to /check-email.
+  if (!data.session) return { ok: true, needsConfirmation: true };
 
-  // The handle_new_user trigger creates the profile; call create_my_profile too
-  // (idempotent) so a friendly username_taken surfaces if the trigger was skipped.
+  // Confirm-email OFF fallback: a session is returned immediately. The trigger
+  // created the profile; call create_my_profile too (idempotent) so a friendly
+  // username_taken surfaces if the trigger was somehow skipped.
   const { error: pErr } = await supabase.rpc("create_my_profile", {
     p_username: uname,
     p_display_name: display,
@@ -91,6 +98,16 @@ export async function signUp(
     if (!profile) return { ok: false, error: "server" };
   }
   return { ok: true };
+}
+
+/** Resend the signup confirmation email to an address that hasn't confirmed yet. */
+export async function resendConfirmation(email: string): Promise<void> {
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: email.trim(),
+    options: { emailRedirectTo: `${window.location.origin}/` },
+  });
+  if (error) throw error;
 }
 
 export async function signOut(): Promise<void> {

@@ -57,7 +57,8 @@ export default function SignupPage() {
     if (!canSubmit) return;
     setBusy(true);
     setError("");
-    const res = await signUp(username.trim(), email.trim(), password);
+    const em = email.trim();
+    const res = await signUp(username.trim(), em, password);
     setBusy(false);
     if (!res.ok) {
       if (res.error === "username_taken") {
@@ -65,14 +66,17 @@ export default function SignupPage() {
         setError("That username is already taken.");
       } else if (res.error === "email_taken") {
         setError("An account with that email already exists. Try signing in.");
-      } else if (res.error === "no_session") {
-        setError("Account created — please check your email to confirm, then sign in.");
       } else {
         setError("Could not create your account. Please try again.");
       }
       return;
     }
-    // AuthGate picks up the new session and loads the profile.
+    if (res.needsConfirmation) {
+      // Email confirmation required — send them to the "check your inbox" page.
+      router.replace(`/check-email?email=${encodeURIComponent(em)}`);
+      return;
+    }
+    // Session established immediately — AuthGate loads the profile.
     router.replace("/");
   }
 

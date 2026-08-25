@@ -15,7 +15,7 @@ import ToastProvider from "./ui/ToastProvider";
 import ConfirmProvider from "./ui/ConfirmDialog";
 
 // Pages that never require a session and render "bare" (no app shell).
-const AUTH_PAGES = ["/login", "/forgot", "/reset", "/signup"];
+const AUTH_PAGES = ["/login", "/forgot", "/reset", "/signup", "/check-email"];
 
 /**
  * Client gate. A Supabase Auth session is required for every page except the
