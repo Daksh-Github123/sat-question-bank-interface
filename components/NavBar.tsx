@@ -31,7 +31,7 @@ export default function NavBar() {
   async function logout() {
     await signOut();
     setUser(null);
-    router.replace("/login");
+    router.replace("/"); // back to the public landing, not the login box
   }
 
   function submitSearch(e: React.FormEvent) {

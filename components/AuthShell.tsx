@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { APP_NAME } from "@/lib/appMeta";
 import Logo from "./Logo";
 
@@ -30,10 +31,12 @@ export default function AuthShell({
       </div>
 
       <div className="animate-pop-in w-full max-w-sm rounded-xl border border-slate-200 bg-white/90 p-8 shadow-xl backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
-        <div className="flex justify-center text-brand-600 dark:text-brand-300">
-          <Logo size={40} />
-        </div>
-        <h1 className="mt-2 text-center text-xl font-bold text-brand-600 dark:text-brand-300">{APP_NAME}</h1>
+        <Link href="/" aria-label={`${APP_NAME} home`} className="block text-brand-600 dark:text-brand-300">
+          <div className="flex justify-center">
+            <Logo size={40} />
+          </div>
+          <h1 className="mt-2 text-center text-xl font-bold">{APP_NAME}</h1>
+        </Link>
         {tagline && (
           <p className="mt-1 text-center text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
             {tagline}
