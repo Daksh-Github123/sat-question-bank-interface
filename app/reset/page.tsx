@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { updatePassword } from "@/lib/auth";
 import { supabase } from "@/lib/supabaseClient";
-import { APP_NAME } from "@/lib/appMeta";
-import Logo from "@/components/Logo";
+import AuthShell from "@/components/AuthShell";
 import PasswordInput from "@/components/ui/PasswordInput";
 
 export default function ResetPage() {
@@ -50,14 +49,7 @@ export default function ResetPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 shadow-sm">
-        <div className="flex justify-center text-brand-600 dark:text-brand-300">
-          <Logo size={40} />
-        </div>
-        <h1 className="mt-2 text-center text-xl font-bold text-brand-600 dark:text-brand-300">{APP_NAME}</h1>
-        <p className="mt-3 text-center text-sm text-slate-500 dark:text-slate-400">Choose a new password</p>
-
+    <AuthShell heading="Choose a new password">
         {done ? (
           <p className="mt-6 rounded-md bg-emerald-50 px-3 py-3 text-center text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
             Password updated. Signing you in…
@@ -80,7 +72,6 @@ export default function ResetPage() {
             </button>
           </form>
         )}
-      </div>
-    </div>
+    </AuthShell>
   );
 }

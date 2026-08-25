@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { APP_NAME } from "@/lib/appMeta";
+import Reveal from "@/components/Reveal";
 
 // Expandable FAQ. Placeholder copy — no branding/name is hardcoded (uses APP_NAME),
 // so this survives a later rebrand as a single edit.
@@ -43,7 +44,7 @@ const FAQS: { q: string; a: string }[] = [
 function Item({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <div className="hover-lift rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -67,8 +68,10 @@ export default function FaqPage() {
         </p>
       </div>
       <div className="space-y-2">
-        {FAQS.map((f) => (
-          <Item key={f.q} {...f} />
+        {FAQS.map((f, i) => (
+          <Reveal key={f.q} delay={Math.min(i, 8) * 55}>
+            <Item {...f} />
+          </Reveal>
         ))}
       </div>
     </div>

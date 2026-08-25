@@ -136,7 +136,7 @@ function BrowseInner() {
           const l = latestByQ.get(q.id);
           const note = noteMap.get(q.id);
           return (
-            <div key={q.id} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <div key={q.id} className="hover-lift rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
               <button onClick={() => setExpanded(expanded === q.id ? null : q.id)} className="flex w-full items-start justify-between gap-3 text-left">
                 <div className="min-w-0">
                   <div className="mb-1 flex flex-wrap items-center gap-2">

@@ -8,6 +8,7 @@ import { currentUserId } from "@/lib/user";
 import { TESTS } from "@/lib/taxonomy";
 import DailyBars, { DayBar } from "@/components/DailyBars";
 import { PageLoader } from "@/components/ui/Spinner";
+import Reveal from "@/components/Reveal";
 
 interface AttemptRow {
   question_uid: string;
@@ -316,10 +317,10 @@ export default function DashboardPage() {
 
       {/* Tiles */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatTile label="Overall accuracy" value={`${tiles.accuracy}%`} sub={`${tiles.overallCorrect}/${tiles.answered} correct (latest)`} />
-        <StatTile label="Coverage" value={`${tiles.covered}/${tiles.bankTotal}`} sub="questions practiced" />
-        <StatTile label="Total time" value={fmtTime(tiles.totalSeconds)} sub="practicing (incl. review)" />
-        <StatTile label="Last 7 days" value={`${tiles.weekCount}`} sub="questions answered" />
+        <Reveal delay={0}><StatTile label="Overall accuracy" value={`${tiles.accuracy}%`} sub={`${tiles.overallCorrect}/${tiles.answered} correct (latest)`} /></Reveal>
+        <Reveal delay={70}><StatTile label="Coverage" value={`${tiles.covered}/${tiles.bankTotal}`} sub="questions practiced" /></Reveal>
+        <Reveal delay={140}><StatTile label="Total time" value={fmtTime(tiles.totalSeconds)} sub="practicing (incl. review)" /></Reveal>
+        <Reveal delay={210}><StatTile label="Last 7 days" value={`${tiles.weekCount}`} sub="questions answered" /></Reveal>
       </div>
 
       {tiles.totalAttempts === 0 && (
@@ -333,7 +334,7 @@ export default function DashboardPage() {
       )}
 
       {/* Daily activity */}
-      <section className="grid gap-4 lg:grid-cols-2">
+      <Reveal as="section" className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Questions per day <span className="font-normal text-slate-400 dark:text-slate-500">· last {WINDOW_DAYS} days</span></h2>
           <DailyBars bars={questionBars} color="#3f07e8" />
@@ -342,7 +343,7 @@ export default function DashboardPage() {
           <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">Time per day <span className="font-normal text-slate-400 dark:text-slate-500">· minutes</span></h2>
           <DailyBars bars={minuteBars} color="#c026d3" suffix="m" />
         </div>
-      </section>
+      </Reveal>
 
       {/* By topic */}
       <section>
@@ -446,7 +447,7 @@ export default function DashboardPage() {
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+    <div className="hover-lift rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
       <p className="text-xs text-slate-500 dark:text-slate-400">{sub}</p>

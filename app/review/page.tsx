@@ -174,7 +174,7 @@ export default function ReviewPage() {
               const q = item.question;
               const open = expanded === item.attemptId;
               return (
-                <div key={item.attemptId} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                <div key={item.attemptId} className="hover-lift rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <button onClick={() => setExpanded(open ? null : item.attemptId)} className="min-w-0 flex-1 text-left">
                       <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">

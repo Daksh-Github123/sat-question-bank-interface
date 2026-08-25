@@ -7,6 +7,7 @@ import { currentUserId } from "@/lib/user";
 import { useUser } from "@/lib/userContext";
 import { deleteSession, endSession } from "@/lib/practice";
 import type { PracticeSessionRow } from "@/lib/types";
+import Reveal from "@/components/Reveal";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/ToastProvider";
 import { PageLoader } from "@/components/ui/Spinner";
@@ -127,18 +128,19 @@ export default function MorePage() {
       <div>
         <h1 className="mb-3 text-2xl font-bold">More</h1>
         <div className="grid gap-3 sm:grid-cols-2">
-          {cards.map((c) => (
-            <Link
-              key={c.href}
-              href={c.href}
-              className="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 transition-colors hover:border-brand-300 hover:bg-brand-50/40"
-            >
-              <span className="text-xl">{c.emoji}</span>
-              <span>
-                <span className="block font-semibold text-slate-800 dark:text-slate-100">{c.label}</span>
-                <span className="block text-sm text-slate-500 dark:text-slate-400">{c.desc}</span>
-              </span>
-            </Link>
+          {cards.map((c, i) => (
+            <Reveal key={c.href} delay={i * 60}>
+              <Link
+                href={c.href}
+                className="hover-lift flex h-full items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 hover:border-brand-300 hover:bg-brand-50/40"
+              >
+                <span className="text-xl">{c.emoji}</span>
+                <span>
+                  <span className="block font-semibold text-slate-800 dark:text-slate-100">{c.label}</span>
+                  <span className="block text-sm text-slate-500 dark:text-slate-400">{c.desc}</span>
+                </span>
+              </Link>
+            </Reveal>
           ))}
         </div>
       </div>
@@ -153,7 +155,7 @@ export default function MorePage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {history.map(({ session: s, agg }) => {
+            {history.map(({ session: s, agg }, idx) => {
               const acc = agg!.total ? Math.round((agg!.correct / agg!.total) * 100) : 0;
               const accColor = acc >= 85 ? "text-emerald-700 dark:text-emerald-300" : acc >= 70 ? "text-amber-700 dark:text-amber-300" : "text-rose-700 dark:text-rose-300";
               const incomplete = s.status !== "completed";
@@ -164,8 +166,9 @@ export default function MorePage() {
               const canResume = incomplete && s.current_index < total;
               const duration = s.active_seconds > 0 ? s.active_seconds : agg!.seconds;
               return (
-                <div
+                <Reveal
                   key={s.id}
+                  delay={Math.min(idx, 8) * 45}
                   className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3"
                 >
                   {/* Left: date + mode, with a single muted detail line */}
@@ -219,7 +222,7 @@ export default function MorePage() {
                       {busy ? "…" : "Delete"}
                     </button>
                   </div>
-                </div>
+                </Reveal>
               );
             })}
           </div>
