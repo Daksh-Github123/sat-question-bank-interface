@@ -79,19 +79,25 @@ questions*, so avoid the word "exam" in copy.
 - **745 questions, 10 skills, one section: "Reading and Writing"** (no Math yet — copy must
   not claim Math). `public_stats()` returns these live.
 
+## Production status (cutover DONE — PR #18, commit 6fa4dc4)
+- **Supabase Auth is LIVE on production** (`sat-question-bank-interface.vercel.app`). The old
+  localStorage login is gone; existing users re-login with their password (still `12345`).
+- **RLS lockdown is APPLIED** (migration `rls_lockdown`, from
+  `supabase/migrations/20260825120000_rls_lockdown.sql`): per-user policies on
+  attempts/practice_sessions/question_state/vocabulary; submit-only feedback/question_reports;
+  questions read-all/admin-write; users select-own/admin. Obsolete ungated round-1 RPCs
+  (verify_login/create_account/set_password/set_email) dropped; API execute revoked on
+  internal_create_auth_user/handle_new_user. Cross-user reads go through SECURITY DEFINER RPCs
+  (leaderboard, admin_list_users). All user progress verified intact after the cutover.
+
 ## Pending / follow-ups
-- **User must test login + signup on the preview** before any production cutover.
-- **RLS lockdown is STAGED, not applied** → `supabase/migrations/20260825120000_rls_lockdown.sql`
-  (per-user policies on attempts/practice_sessions/question_state/vocabulary; submit-only
-  feedback/question_reports; questions read-all/admin-write; users select-own/admin; drops the
-  obsolete ungated round-1 RPCs verify_login/create_account/set_password/set_email; revokes API
-  execute on internal_create_auth_user/handle_new_user). Cross-user reads already go through
-  SECURITY DEFINER RPCs (leaderboard, admin_list_users). **Apply ONLY after** the auth branch is
-  live on production and login is verified there — preview + prod share one DB, so applying early
-  locks out the still-on-localStorage production users. RLS is permissive (`USING true`) until then.
-- Supabase dashboard: enable "leaked password protection" (Auth → Providers → Email).
-- User Supabase settings (surface, not code): Auth → URL Configuration (site + `…/reset` URLs);
-  Auth → Email → turn OFF "Confirm email"; optional SMTP for reliable reset emails.
+- **User dashboard toggles** (not code): enable "leaked password protection" (Auth → Providers →
+  Email); optional SMTP for reliable confirmation/reset emails.
+- Supabase Auth → URL Configuration: Site URL = production URL; Redirect URLs include a Vercel
+  preview wildcard + `…/reset` (set during cutover; revisit when pacesat.com is attached).
+- **Confirm email is kept ON** (dedicated `/check-email` page handles it); do NOT tell users to
+  turn it off — that guidance is obsolete.
+- Google sign-in still deferred (needs the user's Google OAuth credentials; design in the plan file).
 
 ## Accounts
 - daksh (admin) — mailtodakshsingh@gmail.com; kahaan — kahaan.mazmudar@gmail.com;
