@@ -317,7 +317,26 @@ function parseBlock(block: string, sourceFile: string): ParsedQuestion | null {
   const cai = caLine ? lines.indexOf(caLine) : -1;
 
   const qEnd = ai > 0 ? ai : cai > 0 ? cai : ri > 0 ? ri : lines.length;
-  const question_text = qi >= 0 ? lines.slice(qi + 1, qEnd).join(" ").trim() : "";
+
+  // Normally the question body is the lines between the "Question" marker and the
+  // first of Answer / Correct Answer / Rationale. Some export variants omit the
+  // standalone "Question" label, which used to leave question_text empty (and the
+  // DB insert then fails on its NOT NULL constraint). Fallback: start the body
+  // right after the metadata block — i.e. after the last line that is (or ends
+  // with) the difficulty, which parseMeta has already confirmed exists.
+  let qStart: number;
+  if (qi >= 0) {
+    qStart = qi + 1;
+  } else {
+    const metaFrom = startIdx >= 0 ? startIdx : 0;
+    const scanEnd = Math.min(lines.length, metaFrom + 8, qEnd > 0 ? qEnd : lines.length);
+    let metaEnd = metaFrom;
+    for (let i = metaFrom; i < scanEnd; i++) {
+      if (DIFFICULTIES.some((d) => lines[i] === d || lines[i].endsWith(" " + d))) metaEnd = i;
+    }
+    qStart = metaEnd + 1;
+  }
+  const question_text = lines.slice(qStart, qEnd).join(" ").trim();
 
   const choices: Choice[] = [];
   if (ai > 0 && cai > ai) {

@@ -22,11 +22,13 @@ export default function ImportPage() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [saved, setSaved] = useState<number | null>(null);
+  const [skipped, setSkipped] = useState(0);
 
   async function handleFiles(files: FileList | null) {
     if (!files || !files.length) return;
     setBusy(true);
     setSaved(null);
+    setSkipped(0);
     setStatus("Reading PDFs…");
     const out: FileResult[] = [];
     for (const file of Array.from(files)) {
@@ -84,7 +86,11 @@ export default function ImportPage() {
       if (batch.length < 1000) break;
     }
 
-    const normalRows = rows.filter((r) => !graphic.has(r.question_id));
+    const normalCandidates = rows.filter((r) => !graphic.has(r.question_id));
+    // A new question must have text (NOT NULL in the DB). Skip any that parsed
+    // with empty text rather than failing the whole batch, and report how many.
+    const normalRows = normalCandidates.filter((r) => String((r as any).question_text ?? "").trim());
+    const skippedEmpty = normalCandidates.length - normalRows.length;
     // Strip question_text (and source_file, which is irrelevant here) so the
     // cleaned text is preserved for graphic questions.
     const graphicRows = rows
@@ -113,9 +119,11 @@ export default function ImportPage() {
     }
     const total = normalRows.length + graphicRows.length;
     setSaved(total);
+    setSkipped(skippedEmpty);
     setStatus("");
     setBusy(false);
-    toast.success(`Saved ${total} question${total === 1 ? "" : "s"} to the bank.`);
+    const skipNote = skippedEmpty ? ` (skipped ${skippedEmpty} with no readable text)` : "";
+    toast.success(`Saved ${total} question${total === 1 ? "" : "s"} to the bank${skipNote}.`);
   }
 
   // Group parsed questions by skill for a quick summary.
@@ -190,6 +198,11 @@ export default function ImportPage() {
             {saved !== null && (
               <p className="mt-3 rounded-md bg-emerald-50 dark:bg-emerald-950 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
                 ✓ Saved {saved} questions. They&apos;re now available in Practice and Browse.
+                {skipped > 0 && (
+                  <span className="mt-1 block text-amber-700 dark:text-amber-300">
+                    ⚠ {skipped} question{skipped === 1 ? "" : "s"} had no readable text (couldn&apos;t be parsed from this PDF) and {skipped === 1 ? "was" : "were"} skipped.
+                  </span>
+                )}
               </p>
             )}
             {status && !busy && (
