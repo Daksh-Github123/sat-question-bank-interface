@@ -1,0 +1,42 @@
+name: Supabase keepalive
+
+# Supabase pauses free projects after a stretch of inactivity. This workflow
+# makes a tiny, real request to the database once a day so the project stays
+# active. It runs on GitHub's infrastructure (not a developer machine), and can
+# also be triggered on demand from the Actions tab.
+
+on:
+  schedule:
+    # Daily at 06:17 UTC (off-the-hour to avoid scheduler congestion).
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase (public_stats RPC)
+        env:
+          # Supabase project URL + publishable (anon) key. The publishable key is
+          # meant to be public (it already ships in the client bundle), so it's
+          # safe to keep here. public_stats() is a SECURITY DEFINER function
+          # granted to anon that reads the questions table — a genuine DB query.
+          SUPABASE_URL: "https://fqhqgtjrsimyjcrllsce.supabase.co"
+          SUPABASE_ANON_KEY: "sb_publishable__wP5gQ168XOCZ_Hv5VD9vg_IgkGr1qP"
+        run: |
+          set -euo pipefail
+          echo "Pinging $SUPABASE_URL/rest/v1/rpc/public_stats"
+          http_code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/public_stats" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "HTTP $http_code"
+          cat /tmp/resp.json || true
+          echo
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "Keepalive request failed (HTTP $http_code)"
+            exit 1
+          fi
+          echo "Supabase keepalive succeeded."
